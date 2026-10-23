@@ -52,10 +52,15 @@ pub enum ThemeKind {
     SoftDark,
     /// A low-contrast light theme: pale violet-grey surfaces, softened dark text and a periwinkle accent.
     SoftLight,
+    /// Neumorphic light: one cool pale-blue surface everywhere, panels and controls raised or
+    /// pressed into it with paired soft shadows instead of borders, and a clear blue accent.
+    NeuLight,
+    /// Neumorphic dark: the same soft-extruded shapes on a deep blue-slate surface.
+    NeuDark,
 }
 
 impl ThemeKind {
-    pub const ALL: [ThemeKind; 14] = [
+    pub const ALL: [ThemeKind; 16] = [
         ThemeKind::Pro,
         ThemeKind::ProMedium,
         ThemeKind::ProLightGray,
@@ -70,6 +75,8 @@ impl ThemeKind {
         ThemeKind::BreezeDark,
         ThemeKind::SoftDark,
         ThemeKind::SoftLight,
+        ThemeKind::NeuLight,
+        ThemeKind::NeuDark,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -87,6 +94,8 @@ impl ThemeKind {
             ThemeKind::BreezeDark => "Breeze Dark",
             ThemeKind::SoftDark => "Soft Dark",
             ThemeKind::SoftLight => "Soft Light",
+            ThemeKind::NeuLight => "Neumorphic (Light)",
+            ThemeKind::NeuDark => "Neumorphic (Dark)",
         }
     }
     /// The canonical name: `ui.set {theme}` accepts it and the Window › Theme commands are
@@ -107,6 +116,8 @@ impl ThemeKind {
             ThemeKind::BreezeDark => "breezeDark",
             ThemeKind::SoftDark => "softDark",
             ThemeKind::SoftLight => "softLight",
+            ThemeKind::NeuLight => "neuLight",
+            ThemeKind::NeuDark => "neuDark",
         }
     }
     /// Photoshop-grammar layout (tab strips, flat panels): the four Pro brightness levels.
@@ -124,6 +135,7 @@ impl ThemeKind {
                 | ThemeKind::AdwaitaDark
                 | ThemeKind::BreezeDark
                 | ThemeKind::SoftDark
+                | ThemeKind::NeuDark
         )
     }
     /// Whether this theme belongs to the light appearance family.
@@ -150,6 +162,8 @@ impl ThemeKind {
             "breezedark" | "kdedark" | "plasmadark" => Some(ThemeKind::BreezeDark),
             "softdark" => Some(ThemeKind::SoftDark),
             "softlight" => Some(ThemeKind::SoftLight),
+            "neulight" | "neumorphic" | "neumorphiclight" | "neumorphism" => Some(ThemeKind::NeuLight),
+            "neudark" | "neumorphicdark" => Some(ThemeKind::NeuDark),
             _ => None,
         }
     }
@@ -716,6 +730,92 @@ impl Tokens {
                 caption_close_text: Color32::WHITE,
                 scrim: Color32::from_black_alpha(90),
             },
+            // Neumorphic Light: a single cool pale-blue surface for chrome, dock and panels, so
+            // panels read through their paired soft shadows (`Tokens::neu_shadows`) instead of
+            // borders. Text is a deep navy (not black) that still holds 4.5:1 on every surface,
+            // and the accent is a clear blue so selections stay obvious on low-contrast shapes.
+            ThemeKind::NeuLight => Tokens {
+                kind,
+                chrome: Color32::from_rgb(228, 236, 246),
+                canvas: Color32::from_rgb(214, 224, 237),
+                canvas_dot: Color32::from_rgb(214, 224, 237),
+                dock: Color32::from_rgb(228, 236, 246),
+                card: Color32::from_rgb(230, 238, 248),
+                card_border: Color32::from_rgb(220, 229, 241),
+                field: Color32::from_rgb(220, 230, 243),
+                field_border: Color32::from_rgb(198, 211, 228),
+                hover: Color32::from_rgb(237, 243, 251),
+                pressed: Color32::from_rgb(211, 222, 237),
+                text: Color32::from_rgb(30, 44, 66),
+                text_dim: Color32::from_rgb(52, 68, 94),
+                text_faint: Color32::from_rgb(78, 94, 120),
+                icon: Color32::from_rgb(52, 70, 98),
+                accent: Color32::from_rgb(52, 128, 226),
+                accent_soft: Color32::from_rgba_unmultiplied(52, 128, 226, 46),
+                accent_border: Color32::from_rgba_unmultiplied(52, 128, 226, 170),
+                accent_text: Color32::from_rgb(22, 82, 168),
+                separator: Color32::from_rgb(208, 219, 234),
+                shadow: Color32::from_rgba_unmultiplied(120, 140, 170, 90),
+                primary_bg: Color32::from_rgb(46, 118, 214),
+                primary_text: Color32::WHITE,
+                danger: Color32::from_rgb(180, 40, 64),
+                warning: Color32::from_rgb(140, 76, 0),
+                radius_sm: 8.0,
+                radius: 12.0,
+                radius_lg: 18.0,
+                bevel: false,
+                pro: false,
+                round_chips: true,
+                tab_strip: Color32::TRANSPARENT,
+                row_selected: Color32::TRANSPARENT,
+                histogram_bg: Color32::from_rgb(34, 48, 70),
+                histogram_level: 235,
+                caption_close: Color32::from_rgb(214, 64, 84),
+                caption_close_text: Color32::WHITE,
+                scrim: Color32::from_rgba_unmultiplied(40, 56, 84, 80),
+            },
+            // Neumorphic Dark: the same soft-extruded shapes on a deep blue-slate surface, with a
+            // brighter sky-blue accent and off-white text.
+            ThemeKind::NeuDark => Tokens {
+                kind,
+                chrome: Color32::from_rgb(38, 45, 58),
+                canvas: Color32::from_rgb(27, 32, 42),
+                canvas_dot: Color32::from_rgb(27, 32, 42),
+                dock: Color32::from_rgb(38, 45, 58),
+                card: Color32::from_rgb(40, 47, 61),
+                card_border: Color32::from_rgb(46, 54, 69),
+                field: Color32::from_rgb(32, 38, 50),
+                field_border: Color32::from_rgb(54, 63, 80),
+                hover: Color32::from_rgb(47, 55, 71),
+                pressed: Color32::from_rgb(30, 36, 47),
+                text: Color32::from_rgb(228, 235, 246),
+                text_dim: Color32::from_rgb(196, 207, 224),
+                text_faint: Color32::from_rgb(160, 173, 194),
+                icon: Color32::from_rgb(206, 217, 234),
+                accent: Color32::from_rgb(92, 168, 255),
+                accent_soft: Color32::from_rgba_unmultiplied(92, 168, 255, 48),
+                accent_border: Color32::from_rgba_unmultiplied(92, 168, 255, 170),
+                accent_text: Color32::from_rgb(142, 198, 255),
+                separator: Color32::from_rgb(31, 37, 48),
+                shadow: Color32::from_black_alpha(140),
+                primary_bg: Color32::from_rgb(52, 126, 226),
+                primary_text: Color32::WHITE,
+                danger: Color32::from_rgb(246, 128, 144),
+                warning: Color32::from_rgb(242, 196, 120),
+                radius_sm: 8.0,
+                radius: 12.0,
+                radius_lg: 18.0,
+                bevel: false,
+                pro: false,
+                round_chips: true,
+                tab_strip: Color32::TRANSPARENT,
+                row_selected: Color32::TRANSPARENT,
+                histogram_bg: Color32::from_rgb(27, 32, 42),
+                histogram_level: 225,
+                caption_close: Color32::from_rgb(214, 64, 84),
+                caption_close_text: Color32::WHITE,
+                scrim: Color32::from_black_alpha(110),
+            },
             // Ethan Schoonover's Solarized Dark palette: base03 canvas, base02 surfaces, base0
             // body text and the Solarized blue accent. https://ethanschoonover.com/solarized/
             // (MIT; see LICENSE-solarized.txt)
@@ -840,6 +940,22 @@ impl Tokens {
 
     pub fn dark(&self) -> bool {
         self.kind.is_dark()
+    }
+
+    /// Neumorphic themes: panels and controls are raised from, or pressed into, one surface
+    /// colour with paired soft shadows ([`Tokens::neu_shadows`]) instead of borders.
+    pub fn neu(&self) -> bool {
+        matches!(self.kind, ThemeKind::NeuLight | ThemeKind::NeuDark)
+    }
+
+    /// A neumorphic theme's shadow pair `(light, dark)`: the light one falls up and to the left of
+    /// a raised shape, the dark one down and to the right (reversed inside a pressed one).
+    pub fn neu_shadows(&self) -> (Color32, Color32) {
+        if self.dark() {
+            (Color32::from_rgba_unmultiplied(66, 77, 96, 150), Color32::from_rgba_unmultiplied(10, 13, 20, 210))
+        } else {
+            (Color32::from_rgba_unmultiplied(255, 255, 255, 240), Color32::from_rgba_unmultiplied(146, 166, 194, 175))
+        }
     }
 }
 
@@ -1013,6 +1129,12 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     v.menu_corner_radius = CornerRadius::same(t.radius as u8);
     v.window_shadow = egui::Shadow { offset: [0, 10], blur: 32, spread: 0, color: t.shadow };
     v.popup_shadow = egui::Shadow { offset: [0, 6], blur: 20, spread: 0, color: t.shadow };
+    if t.neu() {
+        // Dialogs and menus float on the same soft, cool shadow that raises the panels.
+        let (_, dark) = t.neu_shadows();
+        v.window_shadow = egui::Shadow { offset: [8, 10], blur: 34, spread: 0, color: dark };
+        v.popup_shadow = egui::Shadow { offset: [5, 7], blur: 22, spread: 0, color: dark.gamma_multiply(0.85) };
+    }
     v.selection.bg_fill = if t.bevel || t.pro { t.accent } else { t.accent_soft };
     v.selection.stroke = Stroke::new(1.0, t.accent_text);
     v.slider_trailing_fill = true;

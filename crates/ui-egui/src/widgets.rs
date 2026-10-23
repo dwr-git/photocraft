@@ -47,10 +47,21 @@ pub fn drop_line(ui: &Ui, r: Rect, after: bool, vertical: bool, t: &Tokens) {
     }
 }
 
-/// Draw a bevelled box (Classic theme) or a flat rounded box.
+/// Draw a bevelled box (Classic theme), a soft raised or pressed box (Neumorphic themes) or a
+/// flat rounded box.
 pub fn surface(ui: &Ui, rect: Rect, fill: Color32, raised: bool) {
     let t = Tokens::get(ui.ctx());
     let p = ui.painter();
+    if t.neu() {
+        if raised {
+            p.add(neu_raised_shape(rect, t.radius_sm, 3.0, &t));
+            p.rect_filled(rect, t.radius_sm, fill);
+        } else {
+            p.rect_filled(rect, t.radius_sm, fill);
+            neu_pressed(p, rect, t.radius_sm, &t);
+        }
+        return;
+    }
     p.rect_filled(rect, t.radius_sm, fill);
     if t.bevel {
         let (hi, lo) = if raised { (Color32::WHITE, Color32::from_gray(64)) } else { (Color32::from_gray(64), Color32::WHITE) };
@@ -58,6 +69,38 @@ pub fn surface(ui: &Ui, rect: Rect, fill: Color32, raised: bool) {
         p.line_segment([rect.left_top(), rect.right_top()], Stroke::new(1.0, hi));
         p.line_segment([rect.right_top(), rect.right_bottom()], Stroke::new(1.0, lo));
         p.line_segment([rect.right_bottom(), rect.left_bottom()], Stroke::new(1.0, lo));
+    }
+}
+
+/// The paired soft shadows of a neumorphic shape raised `depth` points out of the surface: the
+/// theme's light shadow up and to the left, its dark shadow down and to the right. Paint it
+/// before (behind) the shape's own fill.
+pub fn neu_raised_shape(rect: Rect, radius: impl Into<CornerRadius> + Copy, depth: f32, t: &Tokens) -> egui::Shape {
+    let (light, dark) = t.neu_shadows();
+    let d = depth.round().clamp(1.0, 24.0) as i8;
+    let blur = (depth * 2.6).round().clamp(2.0, 60.0) as u8;
+    egui::Shape::Vec(vec![
+        egui::Shadow { offset: [-d, -d], blur, spread: 0, color: light }.as_shape(rect, radius).into(),
+        egui::Shadow { offset: [d, d], blur, spread: 0, color: dark }.as_shape(rect, radius).into(),
+    ])
+}
+
+/// The inner shading of a neumorphic shape pressed into the surface (egui has no inset shadow):
+/// fading bands of the theme's dark shadow along the inside top and left edges and of its light
+/// shadow along the bottom and right, clipped to the shape.
+pub fn neu_pressed(painter: &egui::Painter, rect: Rect, radius: f32, t: &Tokens) {
+    let (light, dark) = t.neu_shadows();
+    let clip = rect.intersect(painter.clip_rect());
+    if !clip.is_positive() {
+        return;
+    }
+    let p = painter.with_clip_rect(clip);
+    for (i, strength) in [0.85_f32, 0.5, 0.22].into_iter().enumerate() {
+        let o = 1.0 + i as f32;
+        let w = Stroke::new(1.6, dark.gamma_multiply(strength));
+        p.rect_stroke(rect.translate(vec2(o, o)).expand(1.0), radius, w, StrokeKind::Outside);
+        let w = Stroke::new(1.6, light.gamma_multiply(strength * 0.9));
+        p.rect_stroke(rect.translate(vec2(-o, -o)).expand(1.0), radius, w, StrokeKind::Outside);
     }
 }
 
@@ -128,9 +171,12 @@ pub fn card_ex(
         return pro_panel(ui, id, tabs, selected, collapsed, reorderable, body);
     }
     let m = body_margin(false);
+    // Neumorphic cards rise out of the dock with soft shadows instead of a border; the slot
+    // reserved here puts the shadows behind the card's fill once its size is known.
+    let shadow_slot = t.neu().then(|| ui.painter().add(egui::Shape::Noop));
     let frame = egui::Frame::NONE
         .fill(t.card)
-        .stroke(Stroke::new(1.0, t.card_border))
+        .stroke(if t.neu() { Stroke::NONE } else { Stroke::new(1.0, t.card_border) })
         .corner_radius(CornerRadius::same(t.radius as u8))
         .inner_margin(egui::Margin { bottom: if collapsed { 6 } else { m.bottom }, ..m });
     let out = frame
@@ -151,10 +197,12 @@ pub fn card_ex(
                 body(ui, *selected);
             }
             CardResponse::new(strip, menu, tabs_out)
-        })
-        .inner;
-    ui.add_space(6.0);
-    out
+        });
+    if let Some(slot) = shadow_slot {
+        ui.painter().set(slot, neu_raised_shape(out.response.rect, t.radius as u8, 5.0, &t));
+    }
+    ui.add_space(if t.neu() { 10.0 } else { 6.0 });
+    out.inner
 }
 
 /// Inner margin of a dock panel's body: a Pro panel's, or a Studio card's below its tab strip.
@@ -256,7 +304,7 @@ pub fn pill_tab(ui: &mut Ui, label: &str, selected: bool) -> Response {
     let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
     if selected {
         surface(ui, rect, t.hover, true);
-        if !t.bevel {
+        if !t.bevel && !t.neu() {
             ui.painter().rect_stroke(rect, t.radius_sm, Stroke::new(1.0, t.field_border), StrokeKind::Inside);
         }
     } else if resp.hovered() {
@@ -606,7 +654,7 @@ fn value_field_box(
         None => crate::numeric_expression::Units { unit: unit_of_suffix(typed_suffix), suffix: typed_suffix, dpi, ppi, extent },
     };
     surface(ui, rect, t.field, false);
-    if !t.bevel {
+    if !t.bevel && !t.neu() {
         ui.painter().rect_stroke(rect, t.radius_sm, Stroke::new(1.0, t.field_border), StrokeKind::Inside);
     }
     // The number's slot ends 1 pt left of the suffix, by its measured width (the suffix is drawn
@@ -837,7 +885,7 @@ pub fn text_field_ex(ui: &mut Ui, id: egui::Id, text: &mut String, hint: &str, w
     let t = Tokens::get(ui.ctx());
     let (rect, _) = ui.allocate_exact_size(vec2(width.max(16.0), TEXT_FIELD_H), Sense::hover());
     surface(ui, rect, t.field, false);
-    if !t.bevel {
+    if !t.bevel && !t.neu() {
         ui.painter().rect_stroke(rect, t.radius_sm, Stroke::new(1.0, t.field_border), StrokeKind::Inside);
     }
     let font = if mono { theme::mono(12.0) } else { egui::FontId::proportional(12.5) };
@@ -1181,6 +1229,14 @@ fn slider_with(ui: &mut Ui, value: &mut f32, range: std::ops::RangeInclusive<f32
                 painter.add(mesh);
             }
         }
+        _ if t.neu() => {
+            // A groove pressed into the surface, filled with the accent up to the knob.
+            let groove = track.expand2(vec2(1.0, 1.5));
+            painter.rect_filled(groove, groove.height() / 2.0, t.field);
+            neu_pressed(painter, groove, groove.height() / 2.0, &t);
+            let filled = Rect::from_min_max(track.min, pos2(knob_x, track.max.y));
+            painter.rect_filled(filled, track.height() / 2.0, t.accent);
+        }
         _ => {
             painter.rect_filled(track, 2.0, t.field_border);
             let filled = Rect::from_min_max(track.min, pos2(knob_x, track.max.y));
@@ -1188,7 +1244,16 @@ fn slider_with(ui: &mut Ui, value: &mut f32, range: std::ops::RangeInclusive<f32
         }
     }
     let knob = pos2(knob_x, rect.center().y);
-    if t.bevel {
+    if t.neu() {
+        let kr = 7.5;
+        let r = Rect::from_center_size(knob, vec2(kr * 2.0, kr * 2.0));
+        painter.add(neu_raised_shape(r, kr as u8, 2.5, &t));
+        painter.circle_filled(knob, kr, t.card);
+        painter.circle_filled(knob, 2.5, t.accent);
+        if resp.hovered() || resp.dragged() {
+            painter.circle_stroke(knob, kr + 2.5, Stroke::new(2.0, t.accent_soft));
+        }
+    } else if t.bevel {
         let kr = Rect::from_center_size(knob, vec2(10.0, 16.0));
         surface(ui, kr, t.card, true);
     } else {
@@ -1282,13 +1347,22 @@ pub fn toggle(ui: &mut Ui, on: &mut bool, label: &str) -> Response {
             let (rect, resp) = ui.allocate_exact_size(vec2(30.0, 17.0), Sense::click());
             let how_on = ui.ctx().animate_bool(resp.id, *on);
             let bg = if *on { t.accent } else { t.field_border };
-            if t.bevel {
-                surface(ui, rect, if *on { t.accent } else { t.field }, false);
-            } else {
-                ui.painter().rect_filled(rect, 8.5, bg);
-            }
             let x = egui::lerp((rect.left() + 8.5)..=(rect.right() - 8.5), how_on);
-            ui.painter().circle_filled(pos2(x, rect.center().y), 6.5, Color32::WHITE);
+            if t.neu() {
+                // A pressed-in track that fills with the accent, and a raised knob.
+                ui.painter().rect_filled(rect, 8.5, if *on { t.accent } else { t.field });
+                neu_pressed(ui.painter(), rect, 8.5, &t);
+                let knob = Rect::from_center_size(pos2(x, rect.center().y), vec2(13.0, 13.0));
+                ui.painter().add(neu_raised_shape(knob, 7u8, 1.5, &t));
+                ui.painter().circle_filled(knob.center(), 6.5, t.card);
+            } else {
+                if t.bevel {
+                    surface(ui, rect, if *on { t.accent } else { t.field }, false);
+                } else {
+                    ui.painter().rect_filled(rect, 8.5, bg);
+                }
+                ui.painter().circle_filled(pos2(x, rect.center().y), 6.5, Color32::WHITE);
+            }
             ui.label(egui::RichText::new(tl!(label)).color(if *on { t.text } else { t.text_dim }));
             resp
         })
@@ -1474,7 +1548,7 @@ fn button_impl_h(ui: &mut Ui, label: &str, min_width: f32, height: Option<f32>, 
         bg
     };
     surface(ui, rect, fill, !resp.is_pointer_button_down_on());
-    if !t.bevel && !primary {
+    if !t.bevel && !t.neu() && !primary {
         ui.painter().rect_stroke(rect, t.radius_sm, Stroke::new(1.0, t.field_border), StrokeKind::Inside);
     }
     ui.painter().galley(rect.center() - galley.size() / 2.0, galley, fg);

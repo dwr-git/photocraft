@@ -184,18 +184,36 @@ pub fn button_with_icon_size(ui: &mut egui::Ui, name: &str, box_size: f32, icon_
 /// names the button (for screen readers and tests) when it is hidden.
 pub fn button_with_icon_size_tip(ui: &mut egui::Ui, name: &str, box_size: f32, icon_size: f32, selected: bool, tooltip: &str, show_tip: bool) -> Response {
     let t = Tokens::get(ui.ctx());
+    let neu = t.neu();
     let style = IconButtonStyle {
         normal: ButtonVisuals { fill: Color32::TRANSPARENT, stroke: egui::Stroke::NONE, icon: t.icon },
-        hovered: ButtonVisuals { fill: t.hover, stroke: egui::Stroke::NONE, icon: t.text },
+        hovered: ButtonVisuals { fill: if neu { Color32::TRANSPARENT } else { t.hover }, stroke: egui::Stroke::NONE, icon: t.text },
         pressed: None,
-        selected: ButtonVisuals { fill: t.accent_soft, stroke: egui::Stroke::new(1.0, t.accent_border), icon: t.accent_text },
+        selected: if neu {
+            ButtonVisuals { fill: Color32::TRANSPARENT, stroke: egui::Stroke::NONE, icon: t.accent_text }
+        } else {
+            ButtonVisuals { fill: t.accent_soft, stroke: egui::Stroke::new(1.0, t.accent_border), icon: t.accent_text }
+        },
         corner_radius: t.radius_sm.into(),
         focus_stroke: egui::Stroke::new(1.0, t.accent),
     };
     let label = if tooltip.is_empty() { name } else { tl!(tooltip) };
+    // Neumorphic: the selected button is pressed into the surface, a hovered one rises out of it.
+    // The slot keeps that shape behind the icon; the pressed shading's thin edge bands go on top.
+    let slot = neu.then(|| ui.painter().add(egui::Shape::Noop));
     let resp = IconButton::new(label, Vec2::splat(box_size), &style).selected(selected).show(ui, |ui, rect, tint| {
         paint(ui, rect, name, icon_size, tint);
     });
+    if let Some(slot) = slot {
+        let rect = resp.rect;
+        if selected {
+            ui.painter().set(slot, egui::Shape::rect_filled(rect, t.radius_sm, t.pressed));
+            crate::widgets::neu_pressed(ui.painter(), rect, t.radius_sm, &t);
+        } else if resp.hovered() {
+            let raised = crate::widgets::neu_raised_shape(rect, t.radius_sm, 2.5, &t);
+            ui.painter().set(slot, egui::Shape::Vec(vec![raised, egui::Shape::rect_filled(rect, t.radius_sm, t.hover)]));
+        }
+    }
     if tooltip.is_empty() || !show_tip { resp } else { resp.on_hover_text(label) }
 }
 
