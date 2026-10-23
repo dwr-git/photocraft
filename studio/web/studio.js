@@ -181,17 +181,50 @@
       img.src = src;
     });
   }
+  // Снимок экрана. В браузере ui.screenshot не поддерживается (eframe не умеет), а холст
+  // WebGL/WebGPU очищается после показа кадра. Поэтому читаем его сразу после того, как
+  // редактор нарисовал кадр: оборачиваем requestAnimationFrame и снимаем в том же такте.
+  let frameWaiters = [];
+  const origRAF = window.requestAnimationFrame.bind(window);
+  window.requestAnimationFrame = (cb) => origRAF((t) => {
+    cb(t);
+    if (!frameWaiters.length) return;
+    const waiters = frameWaiters;
+    frameWaiters = [];
+    let url = null;
+    try { url = document.getElementById('photocraft_canvas').toDataURL('image/png'); } catch { /* холст недоступен */ }
+    waiters.forEach((w) => w(url));
+  });
+  const nextFrame = () => new Promise((resolve) => { frameWaiters.push(resolve); });
+  // Однотонный снимок — значит, попали между кадрами.
+  function looksBlank(src) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = 48; c.height = 32;
+        const g = c.getContext('2d');
+        g.drawImage(img, 0, 0, 48, 32);
+        const d = g.getImageData(0, 0, 48, 32).data;
+        const seen = new Set();
+        for (let i = 0; i < d.length && seen.size < 6; i += 4 * 5) seen.add(d[i] + ',' + d[i + 1] + ',' + d[i + 2] + ',' + d[i + 3]);
+        resolve(seen.size < 4);
+      };
+      img.onerror = () => resolve(true);
+      img.src = src;
+    });
+  }
   async function screenshot() {
-    try {
-      const r = await withTimeout(PC.call('ui.screenshot', { focus: false }), 8000, 'снимок экрана');
-      if (r && r.base64) return await downscale('data:' + (r.mime || 'image/png') + ';base64,' + r.base64);
-    } catch { /* ниже — запасной путь */ }
-    try {
-      const canvas = document.getElementById('photocraft_canvas');
-      return await downscale(canvas.toDataURL('image/png'));
-    } catch {
-      return null;
+    if (!PC.ready()) return null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      // Любой запрос к редактору заставляет его нарисовать новый кадр.
+      PC.raw('jobs.list').catch(() => {});
+      const url = await Promise.race([nextFrame(), sleep(1500).then(() => null)]);
+      if (url && !(await looksBlank(url))) {
+        try { return await downscale(url); } catch { return null; }
+      }
     }
+    return null;
   }
 
   // ------------------------------------------------------------------ интерфейс
@@ -228,7 +261,7 @@
       <div class="st-composer">
         <div class="st-input st-pressed">
           <button class="st-icon-btn" data-ref="eye" aria-pressed="true" title="Показывать помощнику экран" aria-label="Показывать помощнику экран">${ICON.eye}</button>
-          <textarea data-ref="input" rows="1" placeholder="Спросите или попросите сделать…" aria-label="Сообщение помощнику"></textarea>
+          <textarea data-ref="input" rows="1" placeholder="Спросите или попросите…" aria-label="Сообщение помощнику"></textarea>
           <button class="st-send" data-ref="send" title="Отправить (Enter)" aria-label="Отправить">${ICON.send}</button>
         </div>
         <div class="st-foot"><span>Ctrl+Z отменяет действия помощника</span><button data-ref="clear">Новый разговор</button></div>
@@ -288,7 +321,11 @@
     h = h.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
     h = h.replace(/\((Ctrl|Shift|Alt|Cmd|⌘|⇧|⌥)([^)\n]{0,24})\)/g, '(<kbd>$1$2</kbd>)');
     // «Изображение › Коррекция › Кривые» — путь в меню
-    h = h.replace(/([«"]?)([А-ЯЁA-Z][^\n›«»"]{1,40}(?:\s›\s[^\n›«»"]{1,40}){1,4})([»"]?)/g, (m, a, p, b) => `${a}<span class="st-path">${p}</span>${b}`);
+    // Сегменты — слова через одиночные пробелы: конечный пробел не должен «съедать» разделитель.
+    const C = '[^\\s›«»"():.,!?;]';
+    const word = `${C}+`;
+    const path = new RegExp(`([А-ЯЁA-Z]${C}*(?: ${word}){0,2}(?: › ${word}(?: ${word}){0,3}){1,4})`, 'g');
+    h = h.replace(path, '<span class="st-path">$1</span>');
     return h;
   }
   function add(el) { log.querySelector('.st-empty')?.remove(); log.appendChild(el); scroll(); return el; }

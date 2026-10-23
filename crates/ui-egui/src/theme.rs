@@ -954,7 +954,7 @@ impl Tokens {
         if self.dark() {
             (Color32::from_rgba_unmultiplied(66, 77, 96, 150), Color32::from_rgba_unmultiplied(10, 13, 20, 210))
         } else {
-            (Color32::from_rgba_unmultiplied(255, 255, 255, 240), Color32::from_rgba_unmultiplied(146, 166, 194, 175))
+            (Color32::from_rgba_unmultiplied(255, 255, 255, 240), Color32::from_rgba_unmultiplied(140, 160, 190, 190))
         }
     }
 }

@@ -199,7 +199,7 @@ pub fn card_ex(
             CardResponse::new(strip, menu, tabs_out)
         });
     if let Some(slot) = shadow_slot {
-        ui.painter().set(slot, neu_raised_shape(out.response.rect, t.radius as u8, 5.0, &t));
+        ui.painter().set(slot, neu_raised_shape(out.response.rect, t.radius as u8, 6.0, &t));
     }
     ui.add_space(if t.neu() { 10.0 } else { 6.0 });
     out.inner
