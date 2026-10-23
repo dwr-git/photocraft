@@ -96,7 +96,7 @@ $in = json_decode($raw, true, 64);
 if (!is_array($in) || !isset($in['messages']) || !is_array($in['messages'])) {
     studio_fail(400, 'Неверный формат запроса: нужен JSON {mode, messages}.');
 }
-$mode = ($in['mode'] ?? 'advice') === 'act' ? 'act' : 'advice';
+$mode = in_array($in['mode'] ?? '', ['act', 'suggest'], true) ? $in['mode'] : 'advice';
 
 /** Оставляет в сообщениях только то, что понимает Ollama, и проверяет размеры. */
 function studio_clean_messages(array $messages, array $limits): array
@@ -188,11 +188,11 @@ $tools = studio_read_tools();
 if ($mode === 'act') {
     $tools = array_merge($tools, studio_act_tools());
 }
+$system = $mode === 'suggest' ? studio_suggest_prompt() : studio_system_prompt($mode);
 
 $payload = [
     'model' => $model,
-    'messages' => array_merge([['role' => 'system', 'content' => studio_system_prompt($mode)]], $messages),
-    'tools' => $tools,
+    'messages' => array_merge([['role' => 'system', 'content' => $system]], $messages),
     'stream' => false,
     'think' => false,
     'options' => [
@@ -201,6 +201,12 @@ $payload = [
         'num_ctx' => max(4096, $ctx),
     ],
 ];
+if ($mode === 'suggest') {
+    // Подсказки — один строгий JSON, без инструментов.
+    $payload['format'] = 'json';
+} else {
+    $payload['tools'] = $tools;
+}
 if (function_exists('enrichLLMPayload')) {
     enrichLLMPayload($payload, 'photocraft'); // трекинг на шлюзе, как у остальных приложений
 }

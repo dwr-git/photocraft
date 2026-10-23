@@ -341,6 +341,40 @@ pub(crate) fn flush_recording(s: &mut Session) -> Result<()> {
     Ok(())
 }
 
+/// `actions.fromJournal {name, from}`: a new action of the replayable steps run since journal
+/// entry `from` (the session's `journalLength` when the work began), as if it had been recorded.
+/// Lets an agent save what it just did ("remember this as an action") without having started a
+/// recording first.
+fn from_journal(s: &mut Session, p: &Value) -> Result<Value> {
+    const CMD: &str = "actions.fromJournal";
+    not_playing(s, CMD)?;
+    let name = match p.get("name") {
+        Some(Value::String(n)) if !n.trim().is_empty() => n.trim().to_string(),
+        Some(Value::String(_)) => return Err(bad(CMD, "\"name\" is empty")),
+        Some(_) => return Err(bad(CMD, "\"name\" must be a string")),
+        None => return Err(bad(CMD, "missing \"name\"")),
+    };
+    if name.chars().count() > 255 {
+        return Err(bad(CMD, "\"name\" is longer than 255 characters"));
+    }
+    if s.actions.list.iter().any(|action| action.name == name) {
+        return Err(bad(CMD, "an action with this name already exists"));
+    }
+    let from = match p.get("from") {
+        None | Some(Value::Null) => 0,
+        Some(v) => v.as_u64().ok_or_else(|| bad(CMD, "\"from\" must be a journal index (a non-negative integer)"))?,
+    };
+    let from = usize::try_from(from).unwrap_or(usize::MAX).min(s.journal.len());
+    let steps: Vec<(String, Value)> = s.journal.iter().skip(from).filter(|(id, _)| replayable(id)).cloned().collect();
+    if steps.is_empty() {
+        return Err(bad(CMD, "nothing to save: no replayable steps since that point"));
+    }
+    let count = steps.len();
+    s.actions.list.push(Action::new(name.clone(), steps));
+    s.actions.touch();
+    Ok(json!({"action": name, "index": s.actions.list.len() - 1, "steps": count}))
+}
+
 fn stop(s: &mut Session, _p: &Value) -> Result<Value> {
     not_playing(s, "actions.stop")?;
     let Some((_, idx)) = s.actions.recording else {
@@ -662,6 +696,16 @@ fn set_color(s: &mut Session, p: &Value) -> Result<Value> {
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
+        CommandSpec {
+            id: "actions.fromJournal",
+            label: "New Action from Recent Steps",
+            menu: &[],
+            shortcut: None,
+            params: r##"{"name":str, "from":journal index=0} → {action, index, steps}. A new action of the replayable steps run since journal entry `from` (ui.inspect › session.journalLength taken before the work), as if recorded. Errors when nothing replayable ran since then or the name is taken."##,
+            enabled: always,
+            run: from_journal,
+            journal: false,
+        },
         CommandSpec {
             id: "actions.move",
             label: "Move Action or Step",
@@ -1519,6 +1563,26 @@ mod tests {
         s.execute("actions.stop", json!({})).unwrap();
         assert_eq!(s.actions.list[1].name, "B");
         assert_eq!(s.actions.list[1].steps.len(), 2);
+    }
+
+    #[test]
+    fn from_journal_saves_the_steps_run_since_a_point() {
+        let mut s = Session::new();
+        s.execute("file.new", json!({"width": 64, "height": 48})).unwrap();
+        let from = s.journal.len();
+        s.execute("image.adjustments.invert", json!({})).unwrap();
+        s.execute("image.adjustments.desaturate", json!({})).unwrap();
+        let r = s.execute("actions.fromJournal", json!({"name": "Mono negative", "from": from})).unwrap();
+        assert_eq!(r["steps"], 2, "{r}");
+        let got = s.execute("actions.get", json!({"action": "Mono negative"})).unwrap();
+        let ids: Vec<&str> = got["steps"].as_array().unwrap().iter().map(|st| st[0].as_str().unwrap()).collect();
+        assert_eq!(ids, ["image.adjustments.invert", "image.adjustments.desaturate"]);
+        // The same name again, nothing new to save, and bad params are errors, not panics.
+        assert!(s.execute("actions.fromJournal", json!({"name": "Mono negative", "from": from})).is_err());
+        assert!(s.execute("actions.fromJournal", json!({"name": "Empty", "from": s.journal.len()})).is_err());
+        for p in [json!({}), json!({"name": ""}), json!({"name": 3}), json!({"name": "x", "from": -1}), json!({"name": "x", "from": "a"}), json!({"name": "x", "from": u64::MAX})] {
+            let _ = s.execute("actions.fromJournal", p);
+        }
     }
 
     #[test]

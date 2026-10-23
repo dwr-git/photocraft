@@ -238,18 +238,25 @@
     eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>',
     stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>',
+    // Мозг — контур из набора Tabler Icons (MIT), нарисованный градиентом #st-brain-grad.
+    brain: '<svg class="st-brain-svg" viewBox="0 0 24 24" fill="none" stroke="url(#st-brain-grad)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 13a3.5 3.5 0 0 0 -3.5 3.5v1a3.5 3.5 0 0 0 7 0v-1.8"/><path d="M8.5 13a3.5 3.5 0 0 1 3.5 3.5v1a3.5 3.5 0 0 1 -7 0v-1.8"/><path d="M17.5 16a3.5 3.5 0 0 0 0 -7h-.5"/><path d="M19 9.3v-2.8a3.5 3.5 0 0 0 -7 0"/><path d="M6.5 16a3.5 3.5 0 0 1 0 -7h.5"/><path d="M5 9.3v-2.8a3.5 3.5 0 0 1 7 0v10"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3l-8 11h6l-1 7 8-11h-6z"/></svg>',
   };
+  // Живой контур: мозг градиентом и три точки на орбите, пока помощник работает.
+  const BRAIN = `${ICON.brain}<b class="st-orbit" aria-hidden="true"><i></i><i></i><i></i></b>`;
 
   const root = document.createElement('div');
   root.id = 'studio-root';
   root.dataset.theme = 'light';
   root.innerHTML = `
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="st-brain-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8fa2ff"/><stop offset=".55" stop-color="#9b7cf0"/><stop offset="1" stop-color="#ff77c6"/></linearGradient></defs></svg>
     <div class="st-veil" aria-hidden="true"></div>
     <div class="st-drop" aria-hidden="true"><span>Отпустите, чтобы открыть в редакторе</span></div>
     <aside class="st-panel" aria-label="Помощник">
       <header class="st-head">
-        <div class="st-logo st-raised-sm" aria-hidden="true"><span></span></div>
+        <div class="st-logo st-brain st-raised-sm" aria-hidden="true">${BRAIN}</div>
         <div class="st-title"><b>Помощник</b><small data-ref="sub">Загрузка редактора…</small></div>
+        <button class="st-icon-btn" data-ref="barBtn" title="Быстрая строка (Ctrl+Shift+Пробел)" aria-label="Быстрая строка">${ICON.bolt}</button>
         <button class="st-icon-btn" data-ref="theme" title="Светлая / тёмная тема" aria-label="Светлая или тёмная тема">${ICON.moon}</button>
         <button class="st-icon-btn" data-ref="hide" title="Свернуть панель" aria-label="Свернуть панель">${ICON.close}</button>
       </header>
@@ -265,10 +272,18 @@
           <textarea data-ref="input" rows="1" placeholder="Спросите или попросите…" aria-label="Сообщение помощнику"></textarea>
           <button class="st-send" data-ref="send" title="Отправить (Enter)" aria-label="Отправить">${ICON.send}</button>
         </div>
-        <div class="st-foot"><span>Ctrl+Z отменяет действия помощника</span><button data-ref="clear">Новый разговор</button></div>
+        <div class="st-foot"><span>Ctrl+Z — отменить · Ctrl+Shift+Пробел — быстрая строка</span><button data-ref="clear">Новый разговор</button></div>
       </div>
     </aside>
-    <button class="st-fab" data-ref="fab" title="Помощник" aria-label="Открыть помощника">${ICON.spark}</button>`;
+    <button class="st-fab st-brain" data-ref="fab" title="Помощник" aria-label="Открыть помощника">${BRAIN}<span class="st-badge" aria-hidden="true"></span></button>
+    <div class="st-bar" data-ref="bar" role="dialog" aria-label="Быстрая строка помощника">
+      <div class="st-bar-answer" data-ref="barAnswer"></div>
+      <div class="st-bar-row">
+        <button class="st-bar-mode" data-ref="barMode" title="Режим: Совет или Сделай"></button>
+        <input data-ref="barInput" type="text" placeholder="Что сделать с фото? Enter — отправить, Esc — закрыть" aria-label="Запрос помощнику">
+        <button class="st-send" data-ref="barSend" aria-label="Отправить">${ICON.send}</button>
+      </div>
+    </div>`;
   const $ = (name) => root.querySelector(`[data-ref="${name}"]`);
   const log = $('log');
   const input = $('input');
@@ -293,6 +308,8 @@
     store.set('mode', mode);
     root.querySelectorAll('.st-seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     $('hint').textContent = HINTS[mode];
+    const bm = root.querySelector('[data-ref="barMode"]');
+    if (bm) bm.textContent = mode === 'act' ? 'Сделай' : 'Совет';
   }
   function setEye(on) {
     attachScreen = !!on;
@@ -308,7 +325,7 @@
     store.set('open', open);
     // eframe подхватывает новый размер canvas на следующем кадре
     window.dispatchEvent(new Event('resize'));
-    if (open) setTimeout(() => input.focus(), 200);
+    if (open) { setTimeout(() => input.focus(), 200); root.classList.remove('has-hints'); }
   }
   function setBusy(on) {
     busy = on;
@@ -404,9 +421,15 @@
         <button class="st-chip" data-act="1">Сделай фото ярче и контрастнее</button>
         <button class="st-chip" data-act="1">Обрежь до квадрата</button>
         <button class="st-chip">Что делают «Кривые»?</button>
+        <button class="st-chip" data-hints="1">Подсказки к этому фото</button>
       </div></div>`;
     log.querySelectorAll('.st-chip').forEach((c) => {
-      c.onclick = () => { if (c.dataset.act) setMode('act'); input.value = c.textContent; send(); };
+      c.onclick = () => {
+        if (c.dataset.hints) { suggestHints(true); return; }
+        if (c.dataset.act) setMode('act');
+        input.value = c.textContent;
+        send();
+      };
     });
   }
 
@@ -424,6 +447,70 @@
     return c;
   }
   const short = (v) => (v === undefined || v === null ? { ok: true } : { ok: true, result: v });
+
+  // Журнал редактора: с какого места помощник (или подсказка) начал менять документ.
+  // «Запомни как действие» сохраняет всё, что выполнилось с этого места (actions.fromJournal).
+  let actRanges = [];
+  let turnFrom = null;
+  let turnRange = null;
+  async function journalLength() {
+    try { const ui = await PC.call('ui.inspect'); return ui.session && Number.isInteger(ui.session.journalLength) ? ui.session.journalLength : null; } catch { return null; }
+  }
+  function markActing() {
+    if (turnRange || turnFrom === null) return;
+    turnRange = { from: turnFrom };
+    actRanges.push(turnRange);
+  }
+  async function saveAction(name, from) {
+    return PC.exec('actions.fromJournal', { name, from });
+  }
+  async function applyActionToAll(name) {
+    const ui = await PC.call('ui.inspect');
+    const docs = (ui.session && ui.session.documents) || [];
+    const active = ui.session ? ui.session.active : null;
+    const results = [];
+    for (const doc of docs) {
+      try {
+        await PC.call('ui.menu.invoke', { id: 'window.document.' + doc.index });
+        const r = await PC.exec('actions.play', { action: name });
+        results.push({ document: doc.name, ran: r && r.ran, failed: r && r.failed ? r.failed.error : undefined });
+      } catch (e) {
+        results.push({ document: doc.name, failed: e.message });
+      }
+    }
+    if (active !== null && active !== undefined) await PC.call('ui.menu.invoke', { id: 'window.document.' + active }).catch(() => {});
+    return results;
+  }
+  // Под ответом, после которого документ изменился: «Запомнить как действие».
+  function offerRemember(range) {
+    const row = document.createElement('div');
+    row.className = 'st-remember';
+    row.innerHTML = '<button class="st-mini">Запомнить как действие</button>';
+    row.querySelector('button').onclick = () => {
+      row.innerHTML = '<input class="st-name" maxlength="80" placeholder="Название, например «Фото для каталога»"><button class="st-mini">Сохранить</button>';
+      const field = row.querySelector('input');
+      field.focus();
+      const save = async () => {
+        const name = field.value.trim();
+        if (!name) { field.focus(); return; }
+        try {
+          const r = await saveAction(name, range.from);
+          row.innerHTML = `<span class="st-saved">Экшен «${esc(r.action)}» сохранён: ${r.steps} шаг(а) · Окно › Экшены</span><button class="st-mini">Применить ко всем открытым</button>`;
+          row.querySelector('button').onclick = async (ev) => {
+            ev.target.disabled = true;
+            const res = await applyActionToAll(r.action);
+            const bad = res.filter((x) => x.failed);
+            ev.target.textContent = bad.length ? `Готово, с ошибками: ${bad.length}` : `Применено: ${res.length}`;
+          };
+        } catch (e) {
+          toast('Не удалось сохранить: ' + e.message, true);
+        }
+      };
+      row.querySelector('button').onclick = save;
+      field.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+    };
+    add(row);
+  }
 
   async function runTool(name, args) {
     if (mode !== 'act' && !READ_TOOLS.has(name)) {
@@ -455,6 +542,7 @@
           return { ok: false, error: 'Пользователь не разрешил это действие. Не повторяй его, спроси, как поступить.' };
         }
         const d = card(name, args, label);
+        markActing();
         root.classList.add('acting');
         try {
           const r = name === 'open_command'
@@ -483,6 +571,7 @@
         const d = card(name, args);
         try {
           const g = await topDialog();
+          if (name === 'confirm_dialog') markActing();
           const r = await PC.call(name === 'confirm_dialog' ? 'ui.dialog.confirm' : 'ui.dialog.cancel', { dialog: g.id });
           cardResult(d, true, '', name === 'confirm_dialog');
           return short(r);
@@ -497,13 +586,39 @@
         const d = card(name, { steps: n });
         try { for (let i = 0; i < n; i++) await PC.exec('edit.undo'); cardResult(d, true); return { ok: true }; } catch (e) { cardResult(d, false, e.message); return { ok: false, error: e.message }; }
       }
+      case 'save_as_action': {
+        const nm = String(args.name || '').trim() || 'Помощник ' + new Date().toLocaleTimeString().slice(0, 5);
+        const range = args.scope === 'conversation' ? actRanges[0] : actRanges[actRanges.length - 1];
+        if (!range) return { ok: false, error: 'Пока нечего сохранять: в этом разговоре документ ещё не менялся.' };
+        const d = card(name, args, ['Сохраняю экшен', nm]);
+        try {
+          const r = await saveAction(nm, range.from);
+          cardResult(d, true);
+          return { ok: true, action: r.action, steps: r.steps, where: 'Окно › Экшены' };
+        } catch (e) { cardResult(d, false, e.message); return { ok: false, error: e.message }; }
+      }
+      case 'apply_action_to_open_documents': {
+        const nm = String(args.name || '').trim();
+        const ui = await PC.call('ui.inspect');
+        const count = ((ui.session && ui.session.documents) || []).length;
+        if (!count) return { ok: false, error: 'Нет открытых документов' };
+        if (!(await confirmAction(`Помощник хочет применить экшен «${nm}» ко всем открытым документам (${count}). Разрешить?`))) {
+          return { ok: false, error: 'Пользователь не разрешил. Не повторяй, спроси, как поступить.' };
+        }
+        const d = card(name, args, ['Применяю экшен', `${nm} → документов: ${count}`]);
+        markActing();
+        const results = await applyActionToAll(nm);
+        const bad = results.filter((x) => x.failed);
+        cardResult(d, !bad.length, bad.map((x) => `${x.document}: ${x.failed}`).join('; '));
+        return { ok: !bad.length, results };
+      }
       default:
         return { ok: false, error: `Нет инструмента ${name}` };
     }
   }
 
   // Модель иногда пишет вызов инструмента текстом вместо tool_calls — подхватываем его.
-  const TOOL_NAMES = ['find_commands', 'get_state', 'look_at_screen', 'run_command', 'open_command', 'set_dialog_field', 'confirm_dialog', 'cancel_dialog', 'select_tool', 'undo'];
+  const TOOL_NAMES = ['find_commands', 'get_state', 'look_at_screen', 'run_command', 'open_command', 'set_dialog_field', 'confirm_dialog', 'cancel_dialog', 'select_tool', 'undo', 'save_as_action', 'apply_action_to_open_documents'];
   function inlineCalls(text) {
     if (!text || !/[{[]/.test(text)) return [];
     const m = text.match(/\{[\s\S]*\}/);
@@ -545,15 +660,17 @@
     return j;
   }
 
-  async function send() {
+  async function send(fromBar) {
     if (busy) { stopRequested = true; return; }
-    const text = input.value.trim();
+    const field = typeof fromBar === 'string' ? null : input;
+    const text = (typeof fromBar === 'string' ? fromBar : input.value).trim();
     if (!text) return;
-    input.value = '';
-    autosize();
+    if (field) { field.value = ''; autosize(); }
     setBusy(true);
     stopRequested = false;
     msg('user', esc(text));
+    turnFrom = await journalLength();
+    turnRange = null;
     try {
       let state = null;
       let image = null;
@@ -603,6 +720,156 @@
       typing(false);
       setBusy(false);
       root.classList.remove('acting');
+      if (turnRange) offerRemember(turnRange);
+      turnRange = null;
+      updateBarAnswer();
+    }
+  }
+
+  // ------------------------------------------------------------------ быстрая строка
+  // Ctrl+Shift+Пробел: поле внизу над холстом. Ответ всплывает над ним; вся история — в панели.
+  const bar = $('bar');
+  const barInput = $('barInput');
+  const barAnswer = $('barAnswer');
+  function setBar(open) {
+    root.classList.toggle('bar-open', open);
+    if (open) { setTimeout(() => barInput.focus(), 30); updateBarAnswer(); }
+  }
+  function updateBarAnswer() {
+    if (!root.classList.contains('bar-open')) return;
+    if (busy) { barAnswer.innerHTML = '<div class="st-typing"><i></i><i></i><i></i></div>'; barAnswer.hidden = false; return; }
+    const last = [...log.querySelectorAll('.st-msg.bot, .st-msg.err')].pop();
+    if (!last || !barSent) { barAnswer.hidden = true; return; }
+    barAnswer.hidden = false;
+    barAnswer.innerHTML = `<div class="st-bar-text ${last.classList.contains('err') ? 'err' : ''}">${last.innerHTML}</div><button class="st-link" data-a="panel">Открыть в панели</button>`;
+    barAnswer.querySelector('[data-a="panel"]').onclick = () => { setBar(false); setOpen(true); };
+  }
+  let barSent = false;
+  async function sendFromBar() {
+    const text = barInput.value.trim();
+    if (!text || busy) return;
+    barInput.value = '';
+    barSent = true;
+    const done = send(text);
+    updateBarAnswer();
+    await done;
+    updateBarAnswer();
+  }
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && e.shiftKey && (e.ctrlKey || e.metaKey) && !e.altKey) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      setBar(!root.classList.contains('bar-open'));
+    }
+  }, true);
+
+  // ------------------------------------------------------------------ подсказки к фото
+  // Открыли фото — помощник смотрит на него и на цифры тонов (document.toneStats) и предлагает
+  // 2–3 правки одной кнопкой. Только из этого списка: модель не выдумывает команды.
+  const HINT_IDS = [
+    'layer.newAdjustmentLayer.curves', 'layer.newAdjustmentLayer.levels', 'layer.newAdjustmentLayer.brightnessContrast',
+    'layer.newAdjustmentLayer.exposure', 'layer.newAdjustmentLayer.vibrance', 'layer.newAdjustmentLayer.hueSaturation',
+    'layer.newAdjustmentLayer.colorBalance', 'layer.newAdjustmentLayer.photoFilter', 'image.adjustments.shadowsHighlights',
+    'image.autoTone', 'image.autoContrast', 'image.autoColor', 'filter.sharpen.smartSharpen', 'filter.noise.reduceNoise',
+  ];
+  const hinted = new Set();
+  let hinting = false;
+  function setBadge(on) { root.classList.toggle('has-hints', on); }
+  async function suggestHints(manual) {
+    if (hinting || !PC.ready()) return;
+    let ui;
+    try { ui = await PC.call('ui.inspect'); } catch { return; }
+    const sess = ui.session;
+    const doc = sess && sess.active !== null && sess.active !== undefined ? sess.documents[sess.active] : null;
+    if (!doc) { if (manual) toast('Сначала откройте фото'); return; }
+    const key = `${doc.name}|${doc.width}x${doc.height}|${doc.path || ''}`;
+    if (!manual && hinted.has(key)) return;
+    hinted.add(key);
+    const stats = await PC.exec('document.toneStats').catch(() => null);
+    if (!stats || !stats.luminance) { if (manual) toast('Не удалось измерить изображение'); return; }
+    if (!manual && stats.luminance.std < 3) return; // пустой холст — советовать нечего
+    hinting = true;
+    const box = document.createElement('div');
+    box.className = 'st-hints';
+    box.innerHTML = `<div class="st-hints-head">${ICON.spark}<b>Подсказки к «${esc(doc.name)}»</b></div><div class="st-typing"><i></i><i></i><i></i></div>`;
+    add(box);
+    try {
+      const all = await commands();
+      await labelsLoaded;
+      const pick = all.filter((c) => HINT_IDS.includes(c.id) && c.enabled);
+      const shot = await screenshot();
+      const content = `Изображение: ${doc.name}, ${doc.width}×${doc.height}\n[document.toneStats]\n${JSON.stringify(stats)}\n[Команды на выбор]\n` +
+        JSON.stringify(pick.map((c) => ({ id: c.id, name: ruName(c), params: clip(String(c.params || ''), 700) })));
+      const r = await fetch(CFG.api, {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'suggest', messages: [{ role: 'user', content, ...(shot && attachScreen ? { images: [shot] } : {}) }] }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'помощник не ответил');
+      let list = [];
+      try {
+        const raw = String(j.message.content || '').replace(/^```(?:json)?|```$/g, '').trim();
+        list = (JSON.parse(raw).suggestions || []);
+      } catch { list = []; }
+      const allowed = new Set(pick.map((c) => c.id));
+      list = list.filter((x) => x && allowed.has(x.command) && x.title).slice(0, 3);
+      renderHints(box, doc, list);
+    } catch (e) {
+      box.innerHTML = `<div class="st-hints-head">${ICON.spark}<b>Подсказки к фото</b></div><small class="st-hints-err">${esc(e.message || String(e))}</small>`;
+    } finally {
+      hinting = false;
+    }
+  }
+  function renderHints(box, doc, list) {
+    if (!list.length) {
+      box.innerHTML = `<div class="st-hints-head">${ICON.spark}<b>«${esc(doc.name)}» уже хорошо выглядит</b></div><small>Явных проблем с тонами и цветом не вижу. Спросите, если хотите что-то конкретное.</small>`;
+      return;
+    }
+    box.innerHTML = `<div class="st-hints-head">${ICON.spark}<b>Подсказки к «${esc(doc.name)}»</b></div><div class="st-hints-list"></div>`;
+    const wrap = box.querySelector('.st-hints-list');
+    for (const h of list) {
+      const b = document.createElement('button');
+      b.className = 'st-chip st-hint';
+      b.innerHTML = `<b>${esc(h.title)}</b>${h.why ? `<small>${esc(h.why)}</small>` : ''}`;
+      b.onclick = async () => {
+        if (b.disabled) return;
+        b.disabled = true;
+        const from = await journalLength();
+        try {
+          await PC.exec(h.command, h.params && typeof h.params === 'object' ? h.params : null);
+          b.classList.add('done');
+          b.querySelector('b').textContent = '✓ ' + h.title;
+          // Первая применённая подсказка открывает «Запомнить как действие»: в экшен войдут
+          // и она, и всё, что сделано после неё.
+          if (from !== null && !box.dataset.offered) {
+            box.dataset.offered = '1';
+            const range = { from };
+            actRanges.push(range);
+            offerRemember(range);
+          }
+        } catch (e) {
+          b.disabled = false;
+          toast('Не получилось: ' + e.message, true);
+        }
+      };
+      wrap.appendChild(b);
+    }
+    if (!root.classList.contains('open')) {
+      setBadge(true);
+      toast('Есть подсказки к фото — откройте помощника');
+    }
+  }
+  async function watchDocuments() {
+    for (;;) {
+      await sleep(2500);
+      if (CFG.suggestOnOpen === false || document.hidden || busy || hinting || !PC.ready()) continue;
+      try {
+        const ui = await PC.call('ui.inspect');
+        const sess = ui.session;
+        const doc = sess && sess.active !== null && sess.active !== undefined ? sess.documents[sess.active] : null;
+        // Только открытые файлы: у нового пустого документа нет пути.
+        if (doc && (doc.path || /\.(jpe?g|png|webp|tiff?|psd|heic|avif|gif|bmp)$/i.test(doc.name || ''))) suggestHints(false);
+      } catch { /* редактор занят */ }
     }
   }
 
@@ -802,8 +1069,15 @@
     root.querySelectorAll('.st-seg button').forEach((b) => { b.onclick = () => setMode(b.dataset.mode); });
     $('eye').onclick = () => setEye(!attachScreen);
     $('hide').onclick = () => setOpen(false);
-    $('fab').onclick = () => setOpen(true);
-    $('send').onclick = send;
+    $('fab').onclick = () => { setOpen(true); setBadge(false); };
+    $('send').onclick = () => send();
+    $('barBtn').onclick = () => setBar(!root.classList.contains('bar-open'));
+    $('barSend').onclick = () => (busy ? send() : sendFromBar());
+    $('barMode').onclick = () => setMode(mode === 'act' ? 'advice' : 'act');
+    barInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sendFromBar(); }
+      if (e.key === 'Escape') { e.preventDefault(); setBar(false); }
+    });
     $('clear').onclick = () => { if (!busy) { convo = []; showEmpty(); } };
     // Луна/солнце — между светлой и тёмной неоморфными; из фирменной — в светлую.
     $('theme').onclick = () => setTheme(root.dataset.theme === 'light' ? 'neuDark' : 'neuLight');
@@ -840,6 +1114,7 @@
     if (store.get('open', CFG.openOnStart)) setOpen(true);
     commands().catch(() => {});
     watchTheme();
+    watchDocuments();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

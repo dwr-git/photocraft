@@ -21,6 +21,8 @@ pub fn session(s: &Session) -> Value {
         })).collect::<Vec<_>>(),
         "foreground": s.tools.foreground,
         "background": s.tools.background,
+        // Where the journal stands now: `actions.fromJournal {from}` saves what runs after it.
+        "journalLength": s.journal.len(),
     })
 }
 
