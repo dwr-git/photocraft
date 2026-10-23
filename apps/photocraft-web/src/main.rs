@@ -5,7 +5,8 @@
 //! from this directory; see `docs/development.md` ("Web build").
 //!
 //! Differences from the desktop app:
-//! - no TCP control server (browsers can't listen on sockets);
+//! - no TCP control server (browsers can't listen on sockets); page scripts reach the same
+//!   control methods through `window.__photocraftNative` (see `control_bridge`);
 //! - file pickers return browser file contents asynchronously through `Services::file_dialog`;
 //!   this includes File → Open and commands such as Place Embedded;
 //! - saving/exporting triggers a browser download;
@@ -26,6 +27,9 @@ mod indexed_presets;
 mod web;
 
 #[cfg(target_arch = "wasm32")]
+mod control_bridge;
+
+#[cfg(target_arch = "wasm32")]
 fn main() {
     web::start();
 }
@@ -44,8 +48,13 @@ mod tests {
     fn loading_page_offers_a_reload_when_startup_stalls() {
         let html = include_str!("../index.html");
         let (_, hint) = html.split_once("<p id=\"photocraft_stalled\">").expect("stalled-startup hint in the loading element");
-        assert!(hint.contains("failed to") && hint.contains("<a href=\"\">Reload</a>"), "{hint}");
+        assert!(hint.contains("не скачаться") && hint.contains("<a href=\"\">Обновите страницу</a>"), "{hint}");
         assert!(html.contains("animation: photocraft-stalled"), "the hint appears after a delay");
-        assert!(!html.contains("<script"), "trunk injects the generated loader; the page has no script of its own");
+        // Trunk injects the generated loader; the only scripts of the page's own are the Studio
+        // assistant panel's, served from studio/.
+        assert!(
+            html.lines().filter(|l| l.contains("<script")).all(|l| l.contains("src=\"studio/")),
+            "trunk injects the generated loader; the page has no script of its own"
+        );
     }
 }
