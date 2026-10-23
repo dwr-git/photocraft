@@ -1,0 +1,77 @@
+# Сборка PhotoCraft Studio: готовая папка для сервера (zip).
+#
+# Запускается на каждое изменение ветки main и вручную (Actions → «Сборка» → Run workflow).
+# Результат:
+#   - Releases → «Последняя сборка» (studio-latest): photocraft-studio-<версия>.zip
+#   - Actions → запуск → Artifacts: тот же zip
+# Rust, trunk и всё остальное ставятся только здесь, на машине GitHub. На ваш сервер
+# попадают готовые файлы: index.html, js, сжатый wasm, PHP помощника.
+name: Сборка
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: studio-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: PhotoCraft Studio (браузер)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      TRUNK_VERSION: 0.21.14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust для WebAssembly
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Кэш сборки
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: studio-web
+          cache-on-failure: true
+
+      - name: Установить trunk
+        run: |
+          curl --proto '=https' -fsSL "https://github.com/trunk-rs/trunk/releases/download/v${TRUNK_VERSION}/trunk-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar -xz -C "$HOME/.cargo/bin" trunk
+          trunk --version
+
+      - name: Проверить PHP помощника
+        run: for f in studio/api/*.php; do php -l "$f"; done
+
+      - name: Проверить JavaScript панели
+        run: node --check studio/web/studio.js && node --check studio/web/config.js
+
+      - name: Собрать сайт
+        run: studio/build/package.sh
+
+      - name: Сохранить zip в Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: photocraft-studio
+          path: dist/release/photocraft-studio-*.zip
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Выложить в Releases (последняя сборка)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ZIP=$(ls dist/release/photocraft-studio-*.zip)
+          gh release delete studio-latest --cleanup-tag --yes 2>/dev/null || true
+          gh release create studio-latest "$ZIP" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Последняя сборка ($(date -u +%Y-%m-%d), ${GITHUB_SHA::7})" \
+            --notes "Готовая папка для сервера. Скачайте zip, распакуйте и положите папку photocraft на сервер. Инструкция: studio/README.ru.md"

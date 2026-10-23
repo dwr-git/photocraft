@@ -1,0 +1,256 @@
+/* PhotoCraft Studio — панель помощника.
+   Неоморфизм: одна поверхность, всё «выдавлено» из неё мягкими парными тенями
+   (светлая — сверху слева, тёмная — снизу справа) или «вдавлено» в неё.
+   Цвета повторяют темы NeuLight / NeuDark редактора (crates/ui-egui/src/theme.rs). */
+
+:root {
+  --st-w: 380px;
+  --st-radius: 18px;
+  --st-radius-sm: 12px;
+  --st-font: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+}
+
+#studio-root[data-theme="light"] {
+  --st-bg: #e4ecf6;
+  --st-surface: #e6eef8;
+  --st-field: #dce6f3;
+  --st-text: #1e2c42;
+  --st-text-dim: #34445e;
+  --st-text-faint: #4e5e78;
+  --st-accent: #3480e2;
+  --st-accent-2: #5aa0f0;
+  --st-accent-text: #1652a8;
+  --st-on-accent: #ffffff;
+  --st-danger: #b42840;
+  --st-ok: #1f7a4d;
+  --st-sh-light: rgba(255, 255, 255, 0.94);
+  --st-sh-dark: rgba(146, 166, 194, 0.62);
+  --st-scrim: rgba(40, 56, 84, 0.18);
+}
+
+#studio-root[data-theme="dark"] {
+  --st-bg: #262d3a;
+  --st-surface: #282f3d;
+  --st-field: #202632;
+  --st-text: #e4ebf6;
+  --st-text-dim: #c4cfe0;
+  --st-text-faint: #a0adc2;
+  --st-accent: #5ca8ff;
+  --st-accent-2: #3d8cf0;
+  --st-accent-text: #8ec6ff;
+  --st-on-accent: #0b1b33;
+  --st-danger: #f68090;
+  --st-ok: #7fd6a6;
+  --st-sh-light: rgba(66, 77, 96, 0.59);
+  --st-sh-dark: rgba(10, 13, 20, 0.82);
+  --st-scrim: rgba(0, 0, 0, 0.3);
+}
+
+/* Редактор уступает место панели: eframe подстраивается под размер canvas. */
+body.studio-open #photocraft_canvas { width: calc(100% - var(--st-w)) !important; }
+@media (max-width: 760px) {
+  :root { --st-w: 100vw; }
+  body.studio-open #photocraft_canvas { width: 100% !important; }
+}
+
+#studio-root, #studio-root * { box-sizing: border-box; }
+#studio-root {
+  font: 14px/1.45 var(--st-font);
+  color: var(--st-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------- панель */
+.st-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: var(--st-w);
+  display: flex; flex-direction: column;
+  background: var(--st-bg);
+  z-index: 50;
+  transform: translateX(0);
+  transition: transform .28s cubic-bezier(.2,.8,.2,1);
+}
+#studio-root:not(.open) .st-panel { transform: translateX(105%); pointer-events: none; }
+
+.st-raised { background: var(--st-surface); box-shadow: -6px -6px 14px var(--st-sh-light), 6px 6px 14px var(--st-sh-dark); }
+.st-raised-sm { background: var(--st-surface); box-shadow: -3px -3px 7px var(--st-sh-light), 3px 3px 7px var(--st-sh-dark); }
+.st-pressed { background: var(--st-field); box-shadow: inset 3px 3px 7px var(--st-sh-dark), inset -3px -3px 7px var(--st-sh-light); }
+
+/* шапка */
+.st-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 16px 12px;
+}
+.st-logo {
+  width: 36px; height: 36px; border-radius: 12px; flex: none;
+  display: grid; place-items: center;
+}
+.st-logo span {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--st-accent-2), var(--st-accent));
+  box-shadow: 0 0 12px var(--st-accent);
+}
+#studio-root.busy .st-logo span { animation: st-pulse 1.1s ease-in-out infinite; }
+@keyframes st-pulse { 50% { transform: scale(.6); opacity: .6; } }
+.st-title { flex: 1; min-width: 0; }
+.st-title b { display: block; font-size: 15px; font-weight: 650; letter-spacing: .01em; }
+.st-title small { display: block; font-size: 12px; color: var(--st-text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.st-icon-btn {
+  width: 34px; height: 34px; border: 0; border-radius: 11px; flex: none;
+  display: grid; place-items: center; cursor: pointer;
+  color: var(--st-text-dim);
+  background: var(--st-surface);
+  box-shadow: -3px -3px 7px var(--st-sh-light), 3px 3px 7px var(--st-sh-dark);
+  transition: box-shadow .15s, color .15s;
+}
+.st-icon-btn:hover { color: var(--st-accent-text); }
+.st-icon-btn:active, .st-icon-btn[aria-pressed="true"] {
+  background: var(--st-field);
+  box-shadow: inset 2px 2px 5px var(--st-sh-dark), inset -2px -2px 5px var(--st-sh-light);
+  color: var(--st-accent-text);
+}
+.st-icon-btn svg { width: 18px; height: 18px; }
+.st-icon-btn:focus-visible, .st-send:focus-visible, .st-chip:focus-visible, .st-seg button:focus-visible {
+  outline: 2px solid var(--st-accent); outline-offset: 2px;
+}
+
+/* переключатель режима Совет / Сделай */
+.st-seg {
+  margin: 4px 16px 12px; padding: 5px; border-radius: 14px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+}
+.st-seg button {
+  border: 0; border-radius: 10px; padding: 8px 6px; cursor: pointer;
+  font: 600 13px var(--st-font); color: var(--st-text-dim); background: transparent;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: color .15s, box-shadow .2s, background .2s;
+}
+.st-seg button svg { width: 15px; height: 15px; }
+.st-seg button[aria-pressed="true"] {
+  color: var(--st-accent-text); background: var(--st-surface);
+  box-shadow: -3px -3px 7px var(--st-sh-light), 3px 3px 7px var(--st-sh-dark);
+}
+.st-mode-hint { margin: -4px 20px 8px; font-size: 12px; color: var(--st-text-faint); }
+
+/* лента сообщений */
+.st-log {
+  flex: 1; overflow-y: auto; padding: 8px 16px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  scrollbar-width: thin; scrollbar-color: var(--st-sh-dark) transparent;
+}
+.st-msg { max-width: 92%; padding: 10px 13px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.st-msg.user {
+  align-self: flex-end; color: var(--st-on-accent);
+  background: linear-gradient(135deg, var(--st-accent-2), var(--st-accent));
+  border-bottom-right-radius: 6px;
+  box-shadow: 4px 4px 10px var(--st-sh-dark), -3px -3px 8px var(--st-sh-light);
+}
+.st-msg.bot {
+  align-self: flex-start; background: var(--st-surface); border-bottom-left-radius: 6px;
+  box-shadow: -4px -4px 10px var(--st-sh-light), 4px 4px 10px var(--st-sh-dark);
+}
+.st-msg.bot code { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 5px; border-radius: 6px; background: var(--st-field); }
+.st-msg.bot kbd { font: 600 12px var(--st-font); padding: 1px 6px; border-radius: 6px; background: var(--st-field); box-shadow: inset 1px 1px 2px var(--st-sh-dark); }
+.st-msg.bot .st-path { color: var(--st-accent-text); font-weight: 600; }
+.st-msg.err { align-self: stretch; max-width: none; color: var(--st-danger); background: var(--st-field); box-shadow: inset 2px 2px 6px var(--st-sh-dark), inset -2px -2px 6px var(--st-sh-light); }
+.st-msg .st-shot { display: block; margin-top: 8px; width: 100%; border-radius: 10px; opacity: .9; }
+
+/* карточки действий помощника */
+.st-act {
+  align-self: stretch; display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px 8px 12px; border-radius: 14px; font-size: 13px;
+  background: var(--st-field);
+  box-shadow: inset 2px 2px 5px var(--st-sh-dark), inset -2px -2px 5px var(--st-sh-light);
+}
+.st-act .st-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--st-accent); }
+.st-act.fail .st-dot { background: var(--st-danger); }
+.st-act.read .st-dot { background: var(--st-text-faint); }
+.st-act .st-act-text { flex: 1; min-width: 0; color: var(--st-text-dim); }
+.st-act .st-act-text b { color: var(--st-text); font-weight: 600; }
+.st-act .st-act-text small { display: block; color: var(--st-text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-act.fail .st-act-text small { color: var(--st-danger); white-space: normal; }
+.st-mini {
+  border: 0; border-radius: 9px; padding: 6px 10px; cursor: pointer; flex: none;
+  font: 600 12px var(--st-font); color: var(--st-accent-text); background: var(--st-surface);
+  box-shadow: -2px -2px 5px var(--st-sh-light), 2px 2px 5px var(--st-sh-dark);
+}
+.st-mini:active { box-shadow: inset 2px 2px 4px var(--st-sh-dark), inset -2px -2px 4px var(--st-sh-light); }
+.st-mini.danger { color: var(--st-danger); }
+.st-mini[disabled] { opacity: .5; cursor: default; }
+
+/* подтверждение опасного действия */
+.st-confirm { align-self: stretch; padding: 12px; border-radius: 16px; }
+.st-confirm p { margin: 0 0 10px; }
+.st-confirm .st-row { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* индикатор «думает» */
+.st-typing { align-self: flex-start; display: flex; gap: 5px; padding: 12px 14px; border-radius: 16px; }
+.st-typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--st-text-faint); animation: st-dots 1.2s infinite; }
+.st-typing i:nth-child(2) { animation-delay: .15s; }
+.st-typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes st-dots { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+/* пустое состояние */
+.st-empty { margin: auto 0; text-align: center; color: var(--st-text-dim); padding: 8px; }
+.st-empty h3 { margin: 0 0 6px; font-size: 16px; color: var(--st-text); }
+.st-empty p { margin: 0 0 16px; font-size: 13px; }
+.st-chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.st-chip {
+  border: 0; border-radius: 12px; padding: 9px 12px; cursor: pointer;
+  font: 500 13px var(--st-font); color: var(--st-text-dim); background: var(--st-surface);
+  box-shadow: -3px -3px 7px var(--st-sh-light), 3px 3px 7px var(--st-sh-dark);
+}
+.st-chip:hover { color: var(--st-accent-text); }
+.st-chip:active { box-shadow: inset 2px 2px 5px var(--st-sh-dark), inset -2px -2px 5px var(--st-sh-light); }
+
+/* поле ввода */
+.st-composer { padding: 12px 16px 16px; }
+.st-input {
+  display: flex; align-items: flex-end; gap: 8px; padding: 8px; border-radius: 18px;
+}
+.st-input textarea {
+  flex: 1; min-height: 38px; max-height: 160px; resize: none; border: 0; outline: 0;
+  padding: 9px 6px; background: transparent; color: var(--st-text);
+  font: 14px/1.4 var(--st-font);
+}
+.st-input textarea::placeholder { color: var(--st-text-faint); }
+.st-send {
+  width: 40px; height: 40px; border: 0; border-radius: 13px; flex: none; cursor: pointer;
+  display: grid; place-items: center; color: var(--st-on-accent);
+  background: linear-gradient(135deg, var(--st-accent-2), var(--st-accent));
+  box-shadow: -3px -3px 7px var(--st-sh-light), 3px 3px 8px var(--st-sh-dark);
+}
+.st-send:active { transform: translateY(1px); box-shadow: inset 2px 2px 5px rgba(0,0,0,.25); }
+.st-send[disabled] { opacity: .55; cursor: default; }
+.st-send svg { width: 18px; height: 18px; }
+.st-input .st-icon-btn { width: 40px; height: 40px; border-radius: 13px; }
+.st-foot { display: flex; justify-content: space-between; margin: 8px 4px 0; font-size: 11.5px; color: var(--st-text-faint); }
+.st-foot button { border: 0; background: none; padding: 0; color: inherit; font: inherit; cursor: pointer; text-decoration: underline dotted; }
+
+/* плавающая кнопка, когда панель свёрнута */
+.st-fab {
+  position: fixed; right: 20px; bottom: 20px; z-index: 49;
+  width: 58px; height: 58px; border: 0; border-radius: 20px; cursor: pointer;
+  display: grid; place-items: center; color: var(--st-accent-text);
+  background: var(--st-surface);
+  box-shadow: -6px -6px 14px var(--st-sh-light), 6px 6px 14px var(--st-sh-dark);
+  transition: transform .2s, opacity .2s;
+}
+.st-fab svg { width: 26px; height: 26px; }
+.st-fab:hover { transform: translateY(-2px); }
+#studio-root.open .st-fab { opacity: 0; pointer-events: none; transform: scale(.8); }
+#studio-root:not(.ready) .st-fab { opacity: 0; pointer-events: none; }
+
+/* подсветка экрана, пока помощник работает */
+.st-veil {
+  position: fixed; inset: 0; right: var(--st-w); z-index: 40; pointer-events: none;
+  box-shadow: inset 0 0 0 3px var(--st-accent), inset 0 0 40px rgba(52,128,226,.25);
+  opacity: 0; transition: opacity .2s;
+}
+#studio-root.acting .st-veil { opacity: 1; }
+@media (max-width: 760px) { .st-veil { right: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .st-panel, .st-fab, .st-seg button { transition: none; }
+  #studio-root.busy .st-logo span, .st-typing i { animation: none; }
+}
