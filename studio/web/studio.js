@@ -326,7 +326,7 @@
       const head = line.match(/^\s*(?:#{1,4}\s*)?\**([^*:]{2,60}):\**\s*$/);
       if (head) return '\u0003' + head[1] + ':\u0004';
       return line.replace(/^#{1,4}\s+/, '');
-    }).join('\n');
+    }).join('\n').replace(/\u0002\n/g, '\u0002');  // пункт списка — блок: перенос после него лишний
     let h = esc(text);
     h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
     h = h.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
@@ -338,8 +338,7 @@
     const path = new RegExp(`([А-ЯЁA-Z]${C}*(?: ${word}){0,2}(?: › ${word}(?: ${word}){0,3}){1,4})`, 'g');
     h = h.replace(path, '<span class="st-path">$1</span>');
     h = h.replace(/\u0001/g, '<span class="st-li">').replace(/\u0002/g, '</span>')
-      .replace(/\u0003/g, '<span class="st-h">').replace(/\u0004/g, '</span>')
-      .replace(/<\/span>\n<span class="st-li">/g, '</span><span class="st-li">');
+      .replace(/\u0003/g, '<span class="st-h">').replace(/\u0004/g, '</span>');
     return h;
   }
   function add(el) { log.querySelector('.st-empty')?.remove(); log.appendChild(el); scroll(); return el; }
