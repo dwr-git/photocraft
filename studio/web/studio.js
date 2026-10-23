@@ -272,7 +272,7 @@
           <textarea data-ref="input" rows="1" placeholder="Спросите или попросите…" aria-label="Сообщение помощнику"></textarea>
           <button class="st-send" data-ref="send" title="Отправить (Enter)" aria-label="Отправить">${ICON.send}</button>
         </div>
-        <div class="st-foot"><span>Ctrl+Z — отменить · Ctrl+Shift+Пробел — быстрая строка</span><button data-ref="clear">Новый разговор</button></div>
+        <div class="st-foot"><span>Ctrl+Z — отменить · Ctrl+Shift+Пробел — строка</span><button data-ref="clear">Новый разговор</button></div>
       </div>
     </aside>
     <button class="st-fab st-brain" data-ref="fab" title="Помощник" aria-label="Открыть помощника">${BRAIN}<span class="st-badge" aria-hidden="true"></span></button>
