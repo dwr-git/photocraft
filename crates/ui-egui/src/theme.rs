@@ -16,6 +16,12 @@
 //! - **Pro (Light Gray)** and **Pro (Light)**: Photoshop's third and fourth interface brightness
 //!   levels (#B8B8B8 and #F0F0F0 panels) with the Pro layout (#2661).
 //!
+//! - **Neumorphic** (Light and Dark): one surface colour, panels and controls raised out of it or
+//!   pressed into it with paired soft shadows.
+//! - **Brand**: a glass look over a fixed backdrop of soft radial colour spots on a deep blue-black
+//!   diagonal gradient ([`paint_backdrop`]): translucent white panels, solid black menus and
+//!   dialogs with a deep shadow.
+//!
 //! Widgets read [`Tokens::get`] instead of hard-coding colours, so every theme applies everywhere.
 
 use egui::{Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Stroke, TextStyle, Visuals};
@@ -57,10 +63,12 @@ pub enum ThemeKind {
     NeuLight,
     /// Neumorphic dark: the same soft-extruded shapes on a deep blue-slate surface.
     NeuDark,
+    /// Brand: translucent white glass panels over a fixed gradient backdrop, black menus and dialogs.
+    Brand,
 }
 
 impl ThemeKind {
-    pub const ALL: [ThemeKind; 16] = [
+    pub const ALL: [ThemeKind; 17] = [
         ThemeKind::Pro,
         ThemeKind::ProMedium,
         ThemeKind::ProLightGray,
@@ -77,6 +85,7 @@ impl ThemeKind {
         ThemeKind::SoftLight,
         ThemeKind::NeuLight,
         ThemeKind::NeuDark,
+        ThemeKind::Brand,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -96,6 +105,7 @@ impl ThemeKind {
             ThemeKind::SoftLight => "Soft Light",
             ThemeKind::NeuLight => "Neumorphic (Light)",
             ThemeKind::NeuDark => "Neumorphic (Dark)",
+            ThemeKind::Brand => "Brand",
         }
     }
     /// The canonical name: `ui.set {theme}` accepts it and the Window › Theme commands are
@@ -118,6 +128,7 @@ impl ThemeKind {
             ThemeKind::SoftLight => "softLight",
             ThemeKind::NeuLight => "neuLight",
             ThemeKind::NeuDark => "neuDark",
+            ThemeKind::Brand => "brand",
         }
     }
     /// Photoshop-grammar layout (tab strips, flat panels): the four Pro brightness levels.
@@ -136,6 +147,7 @@ impl ThemeKind {
                 | ThemeKind::BreezeDark
                 | ThemeKind::SoftDark
                 | ThemeKind::NeuDark
+                | ThemeKind::Brand
         )
     }
     /// Whether this theme belongs to the light appearance family.
@@ -164,6 +176,7 @@ impl ThemeKind {
             "softlight" => Some(ThemeKind::SoftLight),
             "neulight" | "neumorphic" | "neumorphiclight" | "neumorphism" => Some(ThemeKind::NeuLight),
             "neudark" | "neumorphicdark" => Some(ThemeKind::NeuDark),
+            "brand" | "glass" => Some(ThemeKind::Brand),
             _ => None,
         }
     }
@@ -816,6 +829,49 @@ impl Tokens {
                 caption_close_text: Color32::WHITE,
                 scrim: Color32::from_black_alpha(110),
             },
+            // Brand: glass panels over the gradient backdrop (`paint_backdrop`). Chrome, dock and
+            // cards are translucent white, so the backdrop shows through everything; the canvas
+            // surround is clear. Menus and dialogs are solid black (see `apply`).
+            ThemeKind::Brand => Tokens {
+                kind,
+                chrome: Color32::from_rgba_unmultiplied(255, 255, 255, 14),
+                canvas: Color32::TRANSPARENT,
+                canvas_dot: Color32::TRANSPARENT,
+                dock: Color32::from_rgba_unmultiplied(255, 255, 255, 8),
+                card: Color32::from_rgba_unmultiplied(255, 255, 255, 26),
+                card_border: Color32::from_rgba_unmultiplied(255, 255, 255, 34),
+                field: Color32::from_rgba_unmultiplied(0, 0, 0, 110),
+                field_border: Color32::from_rgba_unmultiplied(255, 255, 255, 40),
+                hover: Color32::from_rgba_unmultiplied(255, 255, 255, 38),
+                pressed: Color32::from_rgba_unmultiplied(255, 255, 255, 56),
+                text: Color32::from_rgb(244, 244, 250),
+                text_dim: Color32::from_rgb(210, 210, 226),
+                text_faint: Color32::from_rgb(172, 172, 194),
+                icon: Color32::from_rgb(226, 226, 240),
+                accent: Color32::from_rgb(150, 142, 255),
+                accent_soft: Color32::from_rgba_unmultiplied(150, 142, 255, 56),
+                accent_border: Color32::from_rgba_unmultiplied(150, 142, 255, 180),
+                accent_text: Color32::from_rgb(196, 190, 255),
+                separator: Color32::from_rgba_unmultiplied(255, 255, 255, 24),
+                shadow: Color32::BLACK,
+                primary_bg: Color32::from_rgb(112, 102, 240),
+                primary_text: Color32::WHITE,
+                danger: Color32::from_rgb(255, 128, 156),
+                warning: Color32::from_rgb(255, 204, 128),
+                radius_sm: 8.0,
+                radius: 12.0,
+                radius_lg: 16.0,
+                bevel: false,
+                pro: false,
+                round_chips: true,
+                tab_strip: Color32::TRANSPARENT,
+                row_selected: Color32::TRANSPARENT,
+                histogram_bg: Color32::BLACK,
+                histogram_level: 225,
+                caption_close: Color32::from_rgb(214, 64, 84),
+                caption_close_text: Color32::WHITE,
+                scrim: Color32::from_black_alpha(150),
+            },
             // Ethan Schoonover's Solarized Dark palette: base03 canvas, base02 surfaces, base0
             // body text and the Solarized blue accent. https://ethanschoonover.com/solarized/
             // (MIT; see LICENSE-solarized.txt)
@@ -940,6 +996,11 @@ impl Tokens {
 
     pub fn dark(&self) -> bool {
         self.kind.is_dark()
+    }
+
+    /// Themes whose panels are glass over a painted backdrop ([`paint_backdrop`]).
+    pub fn backdrop(&self) -> bool {
+        matches!(self.kind, ThemeKind::Brand)
     }
 
     /// Neumorphic themes: panels and controls are raised from, or pressed into, one surface
@@ -1129,6 +1190,14 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     v.menu_corner_radius = CornerRadius::same(t.radius as u8);
     v.window_shadow = egui::Shadow { offset: [0, 10], blur: 32, spread: 0, color: t.shadow };
     v.popup_shadow = egui::Shadow { offset: [0, 6], blur: 20, spread: 0, color: t.shadow };
+    if t.backdrop() {
+        // Brand: menus, popups and dialogs are solid black slabs on a deep black shadow.
+        v.window_fill = Color32::BLACK;
+        v.panel_fill = t.chrome;
+        v.window_stroke = Stroke::new(1.0, Color32::from_white_alpha(22));
+        v.window_shadow = egui::Shadow { offset: [0, 8], blur: 32, spread: 0, color: Color32::BLACK };
+        v.popup_shadow = egui::Shadow { offset: [0, 8], blur: 32, spread: 0, color: Color32::BLACK };
+    }
     if t.neu() {
         // Dialogs and menus float on the same soft, cool shadow that raises the panels.
         let (_, dark) = t.neu_shadows();
@@ -1197,6 +1266,84 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     let style = ctx.global_style();
     ctx.set_style_of(egui::Theme::Light, Arc::clone(&style));
     ctx.set_style_of(egui::Theme::Dark, style);
+}
+
+/// Where the Brand backdrop is laid out, when the window is not the whole page: the page's
+/// viewport in the app's screen points. The web shell sets it (the canvas sits beside other
+/// page content), so the backdrop lines up with the same CSS gradient around the canvas.
+pub const BACKDROP_FRAME: &str = "photocraft-backdrop-frame";
+
+/// The Brand theme's backdrop, behind every panel: on a 135° linear gradient #0a0a0f → #1a1a2e →
+/// #16213e, three soft radial spots (at 40%/40% cyan, 80%/20% pink, 20%/80% violet, each
+/// fading to nothing at half the distance to the farthest corner), laid out over the viewport
+/// (CSS `background-attachment: fixed`). Evaluated on a vertex grid: the colours change slowly,
+/// so linear interpolation between vertices matches the CSS gradient.
+pub fn paint_backdrop(ctx: &egui::Context) {
+    if !Tokens::get(ctx).backdrop() {
+        return;
+    }
+    let screen = ctx.content_rect();
+    if !screen.is_positive() {
+        return;
+    }
+    let frame = ctx
+        .data(|d| d.get_temp::<egui::Rect>(egui::Id::new(BACKDROP_FRAME)))
+        .filter(|f| f.is_positive() && f.width().is_finite() && f.height().is_finite())
+        .unwrap_or(screen);
+    const NX: usize = 48;
+    const NY: usize = 30;
+    let mut mesh = egui::Mesh::default();
+    for j in 0..=NY {
+        for i in 0..=NX {
+            let p = egui::pos2(
+                egui::lerp(screen.left()..=screen.right(), i as f32 / NX as f32),
+                egui::lerp(screen.top()..=screen.bottom(), j as f32 / NY as f32),
+            );
+            mesh.colored_vertex(p, backdrop_color(p - frame.min, frame.size()));
+        }
+    }
+    let row = (NX + 1) as u32;
+    for j in 0..NY as u32 {
+        for i in 0..NX as u32 {
+            let a = j * row + i;
+            mesh.add_triangle(a, a + 1, a + row + 1);
+            mesh.add_triangle(a, a + row + 1, a + row);
+        }
+    }
+    ctx.layer_painter(egui::LayerId::background()).add(mesh);
+}
+
+/// The backdrop's colour at `p`, an offset inside a viewport of `size` (sRGB, like CSS).
+pub fn backdrop_color(p: egui::Vec2, size: egui::Vec2) -> Color32 {
+    let (w, h) = (size.x.max(1.0), size.y.max(1.0));
+    // linear-gradient(135deg, …): towards the bottom right, over |w sin θ| + |h cos θ|.
+    let (s, c) = (std::f32::consts::FRAC_1_SQRT_2, -std::f32::consts::FRAC_1_SQRT_2);
+    let len = (w * s).abs() + (h * c).abs();
+    let t = (((p.x - w / 2.0) * s + (p.y - h / 2.0) * -c) / len + 0.5).clamp(0.0, 1.0);
+    let stops = [(0.0, [10.0, 10.0, 15.0]), (0.5, [26.0, 26.0, 46.0]), (1.0, [22.0, 33.0, 62.0])];
+    let mut rgb = stops[0].1;
+    for pair in stops.windows(2) {
+        let ((t0, a), (t1, b)) = (pair[0], pair[1]);
+        if t >= t0 && t <= t1 {
+            let k = (t - t0) / (t1 - t0);
+            rgb = [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+        }
+    }
+    // radial-gradient(circle at x% y%, colour 0%, transparent 50%), bottom layer first.
+    for (cx, cy, spot, alpha) in [
+        (0.4, 0.4, [120.0, 219.0, 255.0], 0.2),
+        (0.8, 0.2, [255.0, 119.0, 198.0], 0.3),
+        (0.2, 0.8, [120.0, 119.0, 198.0], 0.3),
+    ] {
+        let (ox, oy) = (cx * w, cy * h);
+        let far = [(0.0, 0.0), (w, 0.0), (0.0, h), (w, h)].iter().map(|(x, y)| ((x - ox) * (x - ox) + (y - oy) * (y - oy)).sqrt()).fold(0.0_f32, f32::max);
+        let r = ((p.x - ox) * (p.x - ox) + (p.y - oy) * (p.y - oy)).sqrt();
+        let a = alpha * (1.0 - r / (0.5 * far.max(1.0))).clamp(0.0, 1.0);
+        for k in 0..3 {
+            rgb[k] = rgb[k] * (1.0 - a) + spot[k] * a;
+        }
+    }
+    Color32::from_rgb(rgb[0].round() as u8, rgb[1].round() as u8, rgb[2].round() as u8)
 }
 
 /// Seconds the pointer rests on a control before its tooltip shows.

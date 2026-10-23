@@ -328,7 +328,8 @@ pub(crate) fn invoke_unguarded(app: &mut PhotocraftApp, ctx: &egui::Context, id:
         | "window.theme.softLight"
         | "window.theme.softDark"
         | "window.theme.neuLight"
-        | "window.theme.neuDark" => {
+        | "window.theme.neuDark"
+        | "window.theme.brand" => {
             let k = crate::theme::ThemeKind::from_name(&id["window.theme.".len()..]).unwrap_or_default();
             app.set_theme(ctx, k);
             Ok(Value::Null)

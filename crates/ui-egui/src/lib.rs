@@ -2420,6 +2420,8 @@ impl eframe::App for PhotocraftApp {
         let chrome = !self.ui.view.hides_chrome();
         if chrome {
             self.ui.panels.full_screen_chrome = false;
+            // Brand: the gradient backdrop goes under every panel, before they paint.
+            theme::paint_backdrop(&ctx);
         }
         // In Full Screen Mode, Tab shows the menu bar, options bar, toolbar and dock (#6760).
         let tabbed_in = !chrome && self.ui.panels.full_screen_chrome;

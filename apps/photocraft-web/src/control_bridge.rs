@@ -15,6 +15,8 @@
 //! Paste and ⌘V paste screenshots and images copied in other apps, as on the desktop. Copies go
 //! the other way through the page's `window.__studioClipboardWrite(width, height, rgba)`.
 //! `wantsKeyboard()` tells the page whether a text field has the keyboard (its ⌘V pastes text).
+//! `setBackdropFrame(left, top, width, height, pageWidth, pageHeight)` lays the Brand theme's
+//! backdrop out over the whole page rather than the canvas alone.
 
 use std::sync::mpsc::{Sender, TryRecvError};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -103,12 +105,30 @@ pub fn install(tx: Sender<ControlRequest>, ctx: egui::Context, clip: ClipSlot) {
     let clear_clip = Closure::<dyn FnMut()>::new(move || {
         *clip.lock().unwrap_or_else(PoisonError::into_inner) = None;
     });
+    let frame_ctx = keyboard_ctx.clone();
     let wants_keyboard = Closure::<dyn FnMut() -> bool>::new(move || keyboard_ctx.text_edit_focused());
+    // The page's viewport around the canvas (CSS px: the canvas's left and top in the page, its
+    // size, the page's size), so the Brand backdrop lines up with the page's own CSS gradient.
+    let set_frame = Closure::<dyn FnMut(f32, f32, f32, f32, f32, f32)>::new(move |left: f32, top: f32, cw: f32, ch: f32, vw: f32, vh: f32| {
+        let screen = frame_ctx.content_rect();
+        let finite = [left, top, cw, ch, vw, vh].iter().all(|v| v.is_finite());
+        if !finite || cw < 1.0 || ch < 1.0 || vw < 1.0 || vh < 1.0 || !screen.is_positive() {
+            return;
+        }
+        let (sx, sy) = (screen.width() / cw, screen.height() / ch);
+        let frame = egui::Rect::from_min_size(
+            egui::pos2(screen.left() - left * sx, screen.top() - top * sy),
+            egui::vec2(vw * sx, vh * sy),
+        );
+        frame_ctx.data_mut(|d| d.insert_temp(egui::Id::new(photocraft_ui_egui::theme::BACKDROP_FRAME), frame));
+        frame_ctx.request_repaint();
+    });
     let api = js_sys::Object::new();
     let ok = js_sys::Reflect::set(&api, &JsValue::from_str("call"), call.as_ref()).is_ok()
         && js_sys::Reflect::set(&api, &JsValue::from_str("setClipboardImage"), set_clip.as_ref()).is_ok()
         && js_sys::Reflect::set(&api, &JsValue::from_str("clearClipboardImage"), clear_clip.as_ref()).is_ok()
         && js_sys::Reflect::set(&api, &JsValue::from_str("wantsKeyboard"), wants_keyboard.as_ref()).is_ok()
+        && js_sys::Reflect::set(&api, &JsValue::from_str("setBackdropFrame"), set_frame.as_ref()).is_ok()
         && js_sys::Reflect::set(&api, &JsValue::from_str("version"), &JsValue::from_str(env!("CARGO_PKG_VERSION"))).is_ok()
         && js_sys::Reflect::set(&window, &JsValue::from_str(GLOBAL), &api).is_ok();
     if !ok {
@@ -119,6 +139,7 @@ pub fn install(tx: Sender<ControlRequest>, ctx: egui::Context, clip: ClipSlot) {
     set_clip.forget();
     clear_clip.forget();
     wants_keyboard.forget();
+    set_frame.forget();
 }
 
 /// Resolves after `ms` milliseconds (a `setTimeout` promise).

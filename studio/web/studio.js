@@ -303,6 +303,8 @@
   function setOpen(open) {
     root.classList.toggle('open', open);
     document.body.classList.toggle('studio-open', open);
+    setTimeout(syncBackdrop, 60);
+    setTimeout(syncBackdrop, 400);
     store.set('open', open);
     // eframe подхватывает новый размер canvas на следующем кадре
     window.dispatchEvent(new Event('resize'));
@@ -728,14 +730,26 @@
 
   // ------------------------------------------------------------------ тема и запуск
   function applyPanelTheme(themeId) {
-    root.dataset.theme = DARK_THEMES.has(themeId) ? 'dark' : 'light';
-    $('theme').innerHTML = root.dataset.theme === 'dark' ? ICON.sun : ICON.moon;
+    // Фирменная тема выбирается в редакторе (Окно › Тема › Тёмная тема); у панели — тот же вид.
+    const brand = themeId === 'brand';
+    root.dataset.theme = brand ? 'brand' : (DARK_THEMES.has(themeId) ? 'dark' : 'light');
+    document.documentElement.classList.toggle('studio-brand', brand);
+    $('theme').innerHTML = root.dataset.theme === 'light' ? ICON.moon : ICON.sun;
+  }
+  // Градиент фирменной темы редактор рисует по размеру всего окна, а не только холста.
+  function syncBackdrop() {
+    const c = document.getElementById('photocraft_canvas');
+    const n = window.__photocraftNative;
+    if (!c || !n || typeof n.setBackdropFrame !== 'function') return;
+    const r = c.getBoundingClientRect();
+    try { n.setBackdropFrame(r.left, r.top, r.width, r.height, window.innerWidth, window.innerHeight); } catch { /* старая сборка */ }
   }
   async function setTheme(themeId) {
     store.set('theme', themeId);
     applyPanelTheme(themeId);
     if (PC.ready()) await PC.exec('window.theme.' + themeId).catch(() => {});
   }
+  window.addEventListener('resize', () => setTimeout(syncBackdrop, 50));
   async function watchTheme() {
     // Тему можно сменить и в меню редактора (Окно › Тема): панель подстраивается.
     for (;;) {
@@ -744,7 +758,8 @@
       try {
         const t = await PC.exec('prefs.get', { path: 'interface.theme' });
         const id = typeof t === 'string' ? t : (t && t.value);
-        if (id) applyPanelTheme(id);
+        // Тему выбрали в меню редактора — запоминаем её, чтобы после перезагрузки была та же.
+        if (id && id !== store.get('theme', '')) { store.set('theme', id); applyPanelTheme(id); syncBackdrop(); }
       } catch { /* не важно */ }
     }
   }
@@ -770,7 +785,8 @@
     $('fab').onclick = () => setOpen(true);
     $('send').onclick = send;
     $('clear').onclick = () => { if (!busy) { convo = []; showEmpty(); } };
-    $('theme').onclick = () => setTheme(root.dataset.theme === 'dark' ? 'neuLight' : 'neuDark');
+    // Луна/солнце — между светлой и тёмной неоморфными; из фирменной — в светлую.
+    $('theme').onclick = () => setTheme(root.dataset.theme === 'light' ? 'neuDark' : 'neuLight');
     input.addEventListener('input', autosize);
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
@@ -788,6 +804,7 @@
     while (!PC.ready()) await sleep(200);
     await sleep(300);
     root.classList.add('ready');
+    syncBackdrop();
     if (CFG.language) await PC.exec('prefs.set', { path: 'interface.language', value: CFG.language }).catch(() => {});
     await setTheme(store.get('theme', CFG.defaultTheme));
     if (store.get('open', CFG.openOnStart)) setOpen(true);

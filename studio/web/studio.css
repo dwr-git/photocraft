@@ -46,6 +46,65 @@
   --st-scrim: rgba(0, 0, 0, 0.3);
 }
 
+/* Фирменная тема: стекло поверх общего градиента. Редактор рисует тот же градиент сам
+   (theme::paint_backdrop), выровненный по окну, поэтому шва между ним и панелью нет. */
+html.studio-brand, html.studio-brand body, #studio-root[data-theme="brand"] .st-panel {
+  background:
+    radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.2) 0%, transparent 50%),
+    linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%);
+  background-position: 0 0;
+  background-repeat: repeat;
+  background-attachment: fixed;
+}
+#studio-root[data-theme="brand"] {
+  --st-bg: transparent;
+  --st-surface: rgba(255, 255, 255, 0.1);
+  --st-field: #000;
+  --st-text: #f4f4fa;
+  --st-text-dim: #d2d2e2;
+  --st-text-faint: #acacc2;
+  --st-accent: #968eff;
+  --st-accent-2: #ff77c6;
+  --st-accent-text: #c4beff;
+  --st-on-accent: #ffffff;
+  --st-danger: #ff809c;
+  --st-ok: #7fd6a6;
+  --st-sh-light: transparent;
+  --st-sh-dark: rgba(0, 0, 0, 0.6);
+  --st-scrim: rgba(0, 0, 0, 0.4);
+}
+#studio-root[data-theme="brand"] .st-panel { border-left: 1px solid rgba(255, 255, 255, 0.08); }
+/* стеклянные блоки */
+#studio-root[data-theme="brand"] :is(.st-raised, .st-raised-sm, .st-icon-btn, .st-chip, .st-msg.bot, .st-mini, .st-seg button[aria-pressed="true"], .st-typing, .st-toast, .st-drop span) {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+#studio-root[data-theme="brand"] :is(.st-icon-btn, .st-chip, .st-mini):hover { background: rgba(255, 255, 255, 0.16); }
+#studio-root[data-theme="brand"] :is(.st-icon-btn, .st-chip, .st-mini):active,
+#studio-root[data-theme="brand"] .st-icon-btn[aria-pressed="true"] { background: rgba(255, 255, 255, 0.22); box-shadow: none; }
+/* резко чёрные блоки с тенью */
+#studio-root[data-theme="brand"] :is(.st-pressed, .st-act, .st-msg.err, .st-confirm, .st-fab) {
+  background-color: #000;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: rgb(0 0 0) 0px 8px 32px;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+#studio-root[data-theme="brand"] .st-msg.user {
+  background: linear-gradient(135deg, rgba(120, 119, 198, 0.95), rgba(255, 119, 198, 0.8));
+  box-shadow: rgb(0 0 0) 0px 8px 32px;
+}
+#studio-root[data-theme="brand"] .st-send { background: linear-gradient(135deg, #7877c6, #ff77c6); box-shadow: rgb(0 0 0) 0px 8px 24px; }
+#studio-root[data-theme="brand"] .st-msg.bot code,
+#studio-root[data-theme="brand"] .st-msg.bot kbd { background: #000; box-shadow: none; }
+#studio-root[data-theme="brand"] .st-logo span { background: radial-gradient(circle at 35% 35%, #ff77c6, #7877c6); box-shadow: 0 0 14px #ff77c6; }
+#studio-root[data-theme="brand"] .st-veil { box-shadow: inset 0 0 0 3px #968eff, inset 0 0 40px rgba(150, 142, 255, .3); }
+
 /* Редактор уступает место панели: eframe подстраивается под размер canvas. */
 body.studio-open #photocraft_canvas { width: calc(100% - var(--st-w)) !important; }
 @media (max-width: 760px) {

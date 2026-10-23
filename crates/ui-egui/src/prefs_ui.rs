@@ -113,6 +113,7 @@ fn selected_theme(interface: &prefs::Interface, system: Option<egui::Theme>) -> 
             DarkTheme::BreezeDark => ThemeKind::BreezeDark,
             DarkTheme::SoftDark => ThemeKind::SoftDark,
             DarkTheme::NeuDark => ThemeKind::NeuDark,
+            DarkTheme::Brand => ThemeKind::Brand,
         }
     }
 }
@@ -172,6 +173,7 @@ const DARK_THEME_OPTIONS: &[(&str, ThemeKind)] = &[
     ("breezeDark", ThemeKind::BreezeDark),
     ("softDark", ThemeKind::SoftDark),
     ("neuDark", ThemeKind::NeuDark),
+    ("brand", ThemeKind::Brand),
 ];
 
 fn favorite_theme_groups(favorites: &[SavedTheme]) -> (Vec<ThemeKind>, Vec<ThemeKind>) {
