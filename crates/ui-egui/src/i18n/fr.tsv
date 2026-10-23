@@ -4423,3 +4423,10 @@ shape	Appearance	Apparence
 
 # Print preview image (#8236)
 	Print preview image	Print preview image
+
+# Neumorphic Light / Neumorphic Dark themes (Window > Theme, Preferences > Interface)
+	Neumorphic	Néomorphique
+	Neumorphic Light	Néomorphique clair
+	Neumorphic Dark	Néomorphique sombre
+	Neumorphic (Light)	Néomorphique (clair)
+	Neumorphic (Dark)	Néomorphique (sombre)

@@ -724,11 +724,14 @@ mod tests {
             h.run_steps(3);
             let label = h.get_by_label("Hue Jitter").rect();
             let t = Tokens::get(&h.ctx);
+            // Neumorphic themes press the track into the surface as a groove 1.5 pt taller on
+            // each side, filled with the field colour (widgets::slider).
+            let (track_h, track_fill) = if t.neu() { (6.0, t.field) } else { (3.0, t.field_border) };
             assert!(
                 h.output().shapes.iter().any(|c| matches!(&c.shape, egui::Shape::Rect(r)
-                    if r.rect.width() > 150.0 && (r.rect.height() - 3.0).abs() < 0.1
-                    && r.rect.top() > label.bottom() && r.rect.bottom() < label.bottom() + 30.0
-                    && r.fill == t.field_border)),
+                    if r.rect.width() > 150.0 && (r.rect.height() - track_h).abs() < 0.1
+                    && r.rect.top() > label.bottom() - 2.0 && r.rect.bottom() < label.bottom() + 30.0
+                    && r.fill == track_fill)),
                 "{kind:?}: Hue Jitter paints the same neutral track as other percentage amounts"
             );
             assert!(h.query_all_by_role(Role::SpinButton).any(|n| n.accesskit_node().numeric_value() == Some(37.0)));

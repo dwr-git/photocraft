@@ -401,7 +401,9 @@ mod tests {
             output.textures_delta.clear();
             (response.unwrap(), output.shapes)
         }
-        for theme in crate::theme::ThemeKind::ALL {
+        // Neumorphic themes paint the button their own way (pressed when selected, raised on
+        // hover), so the legacy oracle doesn't apply: `neumorphic_buttons_press_in_and_rise`.
+        for theme in crate::theme::ThemeKind::ALL.into_iter().filter(|k| !crate::theme::Tokens::for_kind(*k).neu()) {
             for selected in [false, true] {
                 for enabled in [false, true] {
                     let old = egui::Context::default();
@@ -432,6 +434,50 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn neumorphic_buttons_press_in_and_rise() {
+        for kind in [crate::theme::ThemeKind::NeuLight, crate::theme::ThemeKind::NeuDark] {
+            let t = crate::theme::Tokens::for_kind(kind);
+            let shapes = |selected: bool, hover: bool| {
+                let ctx = egui::Context::default();
+                crate::theme::apply(&ctx, kind);
+                egui_extras::install_image_loaders(&ctx);
+                let mut rect = egui::Rect::NOTHING;
+                let mut out = Vec::new();
+                for step in 0..3 {
+                    let events = if hover && step > 0 { vec![egui::Event::PointerMoved(rect.center())] } else { vec![] };
+                    let mut output = ctx.run_ui(egui::RawInput { events, ..Default::default() }, |ui| {
+                        rect = button(ui, "square", 28.0, selected, "").rect;
+                    });
+                    output.textures_delta.clear();
+                    out = output.shapes;
+                }
+                (rect, out)
+            };
+            // Flatten nested Shape::Vec, as the slot holds the raised shadows and the fill together.
+            fn rects(shapes: &[egui::epaint::ClippedShape]) -> Vec<egui::epaint::RectShape> {
+                fn walk(s: &egui::Shape, out: &mut Vec<egui::epaint::RectShape>) {
+                    match s {
+                        egui::Shape::Rect(r) => out.push(r.clone()),
+                        egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+                        _ => {}
+                    }
+                }
+                let mut out = Vec::new();
+                shapes.iter().for_each(|c| walk(&c.shape, &mut out));
+                out
+            }
+            let (rect, selected) = shapes(true, false);
+            assert!(rects(&selected).iter().any(|r| r.rect == rect && r.fill == t.pressed), "{kind:?}: a selected tool is pressed in");
+            let (rect, hovered) = shapes(false, true);
+            let hovered = rects(&hovered);
+            assert!(hovered.iter().any(|r| r.rect == rect && r.fill == t.hover), "{kind:?}: a hovered button rises");
+            assert!(hovered.iter().filter(|r| r.blur_width > 0.0).count() >= 2, "{kind:?}: with a light and a dark soft shadow");
+            let (_, idle) = shapes(false, false);
+            assert!(rects(&idle).iter().all(|r| r.blur_width == 0.0), "{kind:?}: an idle button stays flat");
         }
     }
 

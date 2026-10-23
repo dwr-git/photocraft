@@ -1280,6 +1280,8 @@ fn choice_label(v: &str) -> String {
         "ahd" => "AHD (adaptive homogeneity)".into(),
         "mhc" => "Malvar–He–Cutler".into(),
         "cpu" => "CPU (no GPU acceleration)".into(),
+        "neuLight" => "Neumorphic Light".into(),
+        "neuDark" => "Neumorphic Dark".into(),
         v => humanize(v),
     }
 }

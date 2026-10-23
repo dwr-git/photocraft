@@ -3040,3 +3040,10 @@ curves	Smooth	平滑
 
 # Print preview image (#8236)
 	Print preview image	Print preview image
+
+# Neumorphic Light / Neumorphic Dark themes (Window > Theme, Preferences > Interface)
+	Neumorphic	新拟态
+	Neumorphic Light	新拟态浅色
+	Neumorphic Dark	新拟态深色
+	Neumorphic (Light)	新拟态（浅色）
+	Neumorphic (Dark)	新拟态（深色）

@@ -4111,3 +4111,10 @@ cameraData	Lens	Lens
 
 # Print preview image (#8236)
 	Print preview image	Print preview image
+
+# Neumorphic Light / Neumorphic Dark themes (Window > Theme, Preferences > Interface)
+	Neumorphic	Nöomorfik
+	Neumorphic Light	Nöomorfik Açık
+	Neumorphic Dark	Nöomorfik Koyu
+	Neumorphic (Light)	Nöomorfik (Açık)
+	Neumorphic (Dark)	Nöomorfik (Koyu)

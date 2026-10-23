@@ -4059,3 +4059,10 @@ curves	Smooth	スムーズ
 
 # Print preview image (#8236)
 	Print preview image	Print preview image
+
+# Neumorphic Light / Neumorphic Dark themes (Window > Theme, Preferences > Interface)
+	Neumorphic	ニューモーフィック
+	Neumorphic Light	ニューモーフィック ライト
+	Neumorphic Dark	ニューモーフィック ダーク
+	Neumorphic (Light)	ニューモーフィック (ライト)
+	Neumorphic (Dark)	ニューモーフィック (ダーク)
