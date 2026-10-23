@@ -1728,10 +1728,11 @@ mod tests {
     /// pick, `Tool::ALL` (#996).
     #[test]
     fn readme_tool_list_matches_tool_all() {
-        let readme = include_str!("../../../README.md");
+        // The original README, kept under docs/ (the repository README is the Studio one).
+        let readme = include_str!("../../../docs/README-upstream.md");
         let (_, rest) = readme.split_once("<h4>🧰 ").unwrap();
         let (count, rest) = rest.split_once(" tools</h4>").unwrap();
-        assert_eq!(count.parse::<usize>().unwrap(), Tool::ALL.len(), "README.md tool heading");
+        assert_eq!(count.parse::<usize>().unwrap(), Tool::ALL.len(), "docs/README-upstream.md tool heading");
         let list = rest.trim_start().lines().next().unwrap();
         // "Rectangular and Elliptical Marquee" names two tools: "Rectangular Marquee", "Elliptical Marquee".
         let mut named: Vec<String> = Vec::new();
