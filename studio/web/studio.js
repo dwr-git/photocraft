@@ -319,16 +319,27 @@
   function scroll() { log.scrollTop = log.scrollHeight; }
 
   function format(text) {
-    let h = esc(text.trim());
+    // Строки списка «- …» / «* …» — с точкой; короткая строка, оканчивающаяся двоеточием, — заголовок.
+    text = text.trim().split('\n').map((line) => {
+      const li = line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/);
+      if (li) return '\u0001' + (/^\s*\d/.test(line) ? line.trim().match(/^\d+[.)]/)[0] + ' ' : '• ') + li[1] + '\u0002';
+      const head = line.match(/^\s*(?:#{1,4}\s*)?\**([^*:]{2,60}):\**\s*$/);
+      if (head) return '\u0003' + head[1] + ':\u0004';
+      return line.replace(/^#{1,4}\s+/, '');
+    }).join('\n');
+    let h = esc(text);
     h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
     h = h.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
     h = h.replace(/\((Ctrl|Shift|Alt|Cmd|⌘|⇧|⌥)([^)\n]{0,24})\)/g, '(<kbd>$1$2</kbd>)');
     // «Изображение › Коррекция › Кривые» — путь в меню
     // Сегменты — слова через одиночные пробелы: конечный пробел не должен «съедать» разделитель.
-    const C = '[^\\s›«»"():.,!?;]';
+    const C = '[^\\s›«»"():.,!?;<>&]';
     const word = `${C}+`;
     const path = new RegExp(`([А-ЯЁA-Z]${C}*(?: ${word}){0,2}(?: › ${word}(?: ${word}){0,3}){1,4})`, 'g');
     h = h.replace(path, '<span class="st-path">$1</span>');
+    h = h.replace(/\u0001/g, '<span class="st-li">').replace(/\u0002/g, '</span>')
+      .replace(/\u0003/g, '<span class="st-h">').replace(/\u0004/g, '</span>')
+      .replace(/<\/span>\n<span class="st-li">/g, '</span><span class="st-li">');
     return h;
   }
   function add(el) { log.querySelector('.st-empty')?.remove(); log.appendChild(el); scroll(); return el; }

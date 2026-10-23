@@ -503,8 +503,8 @@ pub fn window(app: &mut PhotocraftApp, ctx: &egui::Context) {
     }
     let t = Tokens::get(ctx);
     let frame = egui::Frame::NONE
-        .fill(t.card)
-        .stroke(Stroke::new(1.0, t.card_border))
+        .fill(t.float_fill())
+        .stroke(Stroke::new(1.0, t.float_border()))
         .corner_radius(CornerRadius::same(t.radius_lg as u8))
         .shadow(egui::Shadow { offset: [0, 10], blur: 30, spread: 0, color: t.shadow })
         .inner_margin(egui::Margin::same(10));

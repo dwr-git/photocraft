@@ -3947,8 +3947,8 @@ pub fn properties_window(app: &mut PhotocraftApp, ctx: &egui::Context) {
     let width = 320.0;
     let pos = pos2(canvas.right() - width - 12.0, canvas.top() + 44.0);
     let frame = egui::Frame::NONE
-        .fill(t.card)
-        .stroke(Stroke::new(1.0, t.card_border))
+        .fill(t.float_fill())
+        .stroke(Stroke::new(1.0, t.float_border()))
         .corner_radius(CornerRadius::same(t.radius_lg as u8))
         .shadow(egui::Shadow { offset: [0, 12], blur: 36, spread: 0, color: t.shadow })
         .inner_margin(egui::Margin::same(14));

@@ -229,8 +229,8 @@ pub fn show(app: &mut PhotocraftApp, ctx: &egui::Context) {
             ui.set_max_width(360.0);
             for n in &app.ui.notices {
                 egui::Frame::NONE
-                    .fill(t.card)
-                    .stroke(egui::Stroke::new(1.0, if n.error { t.warning } else { t.card_border }))
+                    .fill(t.float_fill())
+                    .stroke(egui::Stroke::new(1.0, if n.error { t.warning } else { t.float_border() }))
                     .corner_radius(t.radius)
                     .inner_margin(egui::Margin::same(10))
                     .shadow(egui::Shadow { offset: [0, 2], blur: 8, spread: 0, color: t.shadow })

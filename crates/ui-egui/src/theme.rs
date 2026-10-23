@@ -998,6 +998,17 @@ impl Tokens {
         self.kind.is_dark()
     }
 
+    /// The fill of floating panels (Properties, the brush, type and preset panels, the command
+    /// palette, notices): the card colour, or solid black in Brand, like its menus and dialogs.
+    pub fn float_fill(&self) -> Color32 {
+        if self.backdrop() { Color32::BLACK } else { self.card }
+    }
+
+    /// The outline of floating panels: the card border, or a faint edge on Brand's black.
+    pub fn float_border(&self) -> Color32 {
+        if self.backdrop() { Color32::from_white_alpha(14) } else { self.card_border }
+    }
+
     /// Themes whose panels are glass over a painted backdrop ([`paint_backdrop`]).
     pub fn backdrop(&self) -> bool {
         matches!(self.kind, ThemeKind::Brand)

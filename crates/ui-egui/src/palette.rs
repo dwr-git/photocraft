@@ -139,8 +139,8 @@ pub fn show(app: &mut PhotocraftApp, ctx: &egui::Context) {
         .fixed_pos(egui::pos2(screen.center().x, screen.top() + 110.0))
         .show(ctx, |ui| {
             egui::Frame::NONE
-                .fill(t.card)
-                .stroke(Stroke::new(1.0, t.card_border))
+                .fill(t.float_fill())
+                .stroke(Stroke::new(1.0, t.float_border()))
                 .corner_radius(CornerRadius::same(t.radius_lg as u8))
                 .shadow(egui::Shadow { offset: [0, 18], blur: 48, spread: 0, color: t.shadow })
                 .inner_margin(egui::Margin::same(10))
