@@ -27,6 +27,7 @@ APP="$OUT/photocraft"
 mkdir -p "$APP/studio"
 cp "$ROOT/studio/web/studio.js" "$ROOT/studio/web/studio.css" "$ROOT/studio/web/config.js" "$APP/studio/"
 cp "$ROOT/studio/web/.htaccess" "$APP/studio/"
+cp "$ROOT/studio/web/favicon.png" "$APP/favicon.png"
 python3 "$ROOT/studio/build/make_labels.py" "$APP/studio/ru-labels.json"
 
 # The assistant's PHP: api/ next to index.html.

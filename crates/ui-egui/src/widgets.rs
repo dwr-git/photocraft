@@ -172,8 +172,10 @@ pub fn card_ex(
     }
     let m = body_margin(false);
     // Neumorphic cards rise out of the dock with soft shadows instead of a border; the slot
-    // reserved here puts the shadows behind the card's fill once its size is known.
-    let shadow_slot = t.neu().then(|| ui.painter().add(egui::Shape::Noop));
+    // reserved here puts the shadows behind the card's fill once its size is known. The shadows
+    // may spill a few points past the dock's clip: cut off there, they end in hard corners.
+    let shadow_painter = ui.painter().with_clip_rect(ui.clip_rect().expand(NEU_CARD_DEPTH * 2.5));
+    let shadow_slot = t.neu().then(|| shadow_painter.add(egui::Shape::Noop));
     let frame = egui::Frame::NONE
         .fill(t.card)
         .stroke(if t.neu() { Stroke::NONE } else { Stroke::new(1.0, t.card_border) })
@@ -199,11 +201,14 @@ pub fn card_ex(
             CardResponse::new(strip, menu, tabs_out)
         });
     if let Some(slot) = shadow_slot {
-        ui.painter().set(slot, neu_raised_shape(out.response.rect, t.radius as u8, 6.0, &t));
+        shadow_painter.set(slot, neu_raised_shape(out.response.rect, t.radius as u8, NEU_CARD_DEPTH, &t));
     }
     ui.add_space(if t.neu() { 10.0 } else { 6.0 });
     out.inner
 }
+
+/// How far a neumorphic dock card stands out of the dock, in points.
+const NEU_CARD_DEPTH: f32 = 4.5;
 
 /// Inner margin of a dock panel's body: a Pro panel's, or a Studio card's below its tab strip.
 fn body_margin(pro: bool) -> egui::Margin {
@@ -1245,10 +1250,13 @@ fn slider_with(ui: &mut Ui, value: &mut f32, range: std::ops::RangeInclusive<f32
     }
     let knob = pos2(knob_x, rect.center().y);
     if t.neu() {
+        // Small parts get crisp shadows: a blurred one turns into a smudge at this size.
         let kr = 7.5;
-        let r = Rect::from_center_size(knob, vec2(kr * 2.0, kr * 2.0));
-        painter.add(neu_raised_shape(r, kr as u8, 2.5, &t));
+        let (light, dark) = t.neu_shadows();
+        painter.circle_filled(knob + vec2(0.8, 1.2), kr + 0.6, dark.gamma_multiply(0.55));
+        painter.circle_filled(knob - vec2(0.6, 0.6), kr, light.gamma_multiply(0.8));
         painter.circle_filled(knob, kr, t.card);
+        painter.circle_stroke(knob, kr - 0.5, Stroke::new(1.0, dark.gamma_multiply(0.18)));
         painter.circle_filled(knob, 2.5, t.accent);
         if resp.hovered() || resp.dragged() {
             painter.circle_stroke(knob, kr + 2.5, Stroke::new(2.0, t.accent_soft));
@@ -1349,12 +1357,23 @@ pub fn toggle(ui: &mut Ui, on: &mut bool, label: &str) -> Response {
             let bg = if *on { t.accent } else { t.field_border };
             let x = egui::lerp((rect.left() + 8.5)..=(rect.right() - 8.5), how_on);
             if t.neu() {
-                // A pressed-in track that fills with the accent, and a raised knob.
-                ui.painter().rect_filled(rect, 8.5, if *on { t.accent } else { t.field });
-                neu_pressed(ui.painter(), rect, 8.5, &t);
-                let knob = Rect::from_center_size(pos2(x, rect.center().y), vec2(13.0, 13.0));
-                ui.painter().add(neu_raised_shape(knob, 7u8, 1.5, &t));
-                ui.painter().circle_filled(knob.center(), 6.5, t.card);
+                // A track set into the surface (accent when on) and a raised knob, all with crisp
+                // edges: blurred shadows smear at a switch this small.
+                let (light, dark) = t.neu_shadows();
+                let p = ui.painter();
+                let r = rect.height() / 2.0;
+                p.rect_filled(rect, r, if *on { t.accent } else { t.field });
+                if !*on {
+                    // Inset: a darker rim on top, a lighter one along the bottom.
+                    p.rect_stroke(rect, r, Stroke::new(1.0, dark.gamma_multiply(0.45)), StrokeKind::Inside);
+                    p.line_segment(
+                        [pos2(rect.left() + r, rect.bottom() - 0.5), pos2(rect.right() - r, rect.bottom() - 0.5)],
+                        Stroke::new(1.0, light.gamma_multiply(0.9)),
+                    );
+                }
+                let c = pos2(x, rect.center().y);
+                p.circle_filled(c + vec2(0.0, 1.0), 6.7, dark.gamma_multiply(if *on { 0.35 } else { 0.5 }));
+                p.circle_filled(c, 6.5, if t.dark() { t.text } else { Color32::WHITE });
             } else {
                 if t.bevel {
                     surface(ui, rect, if *on { t.accent } else { t.field }, false);

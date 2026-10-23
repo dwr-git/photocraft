@@ -89,9 +89,13 @@ pub fn start() {
                     preset_warnings.extend(warnings);
                     let drag = listen_drag(&pen_target);
                     let (control_tx, control_rx) = std::sync::mpsc::channel();
-                    let mut app = PhotocraftApp::new(session, services(inbox.clone(), place_inbox.clone(), drag_pos_service(pen_target.clone(), drag)))
-                        .with_control(control_rx);
-                    crate::control_bridge::install(control_tx, cc.egui_ctx.clone());
+                    let clip = crate::control_bridge::ClipSlot::default();
+                    let mut services = services(inbox.clone(), place_inbox.clone(), drag_pos_service(pen_target.clone(), drag));
+                    let (clip_get, clip_set) = crate::control_bridge::clipboard_services(&clip);
+                    services.clipboard_get_image = Some(clip_get);
+                    services.clipboard_set_image = Some(clip_set);
+                    let mut app = PhotocraftApp::new(session, services).with_control(control_rx);
+                    crate::control_bridge::install(control_tx, cc.egui_ctx.clone(), clip);
                     if !preset_warnings.is_empty() {
                         photocraft_ui_egui::notices::post(&mut app, i18n::t("Some brush presets could not be loaded"), preset_warnings, true, None);
                     }

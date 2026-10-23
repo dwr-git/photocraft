@@ -2,14 +2,22 @@
 //! the same control methods as the desktop control channel (`docs/control-protocol.md`).
 //!
 //! The app exposes one function, `window.__photocraftNative.call(method, paramsJson)`, which
-//! returns a Promise of the reply as a JSON string. The assistant's `photocraft-bridge.js` wraps
+//! returns a Promise of the reply as a JSON string. The assistant panel (`studio/web/studio.js`) wraps
 //! it as `window.photocraft.control(method, params)` with parsed objects.
 //!
 //! Requests travel the same channel as the desktop TCP transport ([`ControlRequest`]), so the
 //! reply is exactly what `ui.inspect`, `engine.execute` and the rest reply there. The UI thread
 //! handles requests between frames, so each call asks for a repaint and then polls its reply.
+//!
+//! The bridge also carries the system clipboard's images, which the browser only hands to page
+//! scripts (in a `paste` event): `setClipboardImage(width, height, rgba)` and
+//! `clearClipboardImage()` fill the slot that `Services::clipboard_get_image` reads, so Edit ›
+//! Paste and ⌘V paste screenshots and images copied in other apps, as on the desktop. Copies go
+//! the other way through the page's `window.__studioClipboardWrite(width, height, rgba)`.
+//! `wantsKeyboard()` tells the page whether a text field has the keyboard (its ⌘V pastes text).
 
 use std::sync::mpsc::{Sender, TryRecvError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use photocraft_ui_egui::ControlRequest;
 use wasm_bindgen::{JsValue, closure::Closure};
@@ -20,10 +28,38 @@ const POLL_MS: i32 = 16;
 const TIMEOUT_MS: f64 = 60_000.0;
 /// The global the bridge installs.
 const GLOBAL: &str = "__photocraftNative";
+/// The page function that puts a copied image on the system clipboard.
+const CLIPBOARD_WRITE: &str = "__studioClipboardWrite";
+/// The largest clipboard image the page may hand over: 16k × 16k RGBA (1 GiB).
+const MAX_CLIP_BYTES: usize = 16_384 * 16_384 * 4;
+
+/// The system clipboard's image as the page last saw it: `(width, height, RGBA8)`.
+pub type ClipSlot = Arc<Mutex<Option<(u32, u32, Vec<u8>)>>>;
+
+/// `Services::clipboard_get_image` and `clipboard_set_image` for the browser, over `slot`.
+pub fn clipboard_services(slot: &ClipSlot) -> (photocraft_ui_egui::ClipboardGetFn, photocraft_ui_egui::ClipboardSetFn) {
+    let read = slot.clone();
+    let get: photocraft_ui_egui::ClipboardGetFn = Box::new(move || Ok(read.lock().unwrap_or_else(PoisonError::into_inner).clone()));
+    let write = slot.clone();
+    let set: photocraft_ui_egui::ClipboardSetFn = Box::new(move |w, h, rgba| {
+        // Remember what we copied, so a later paste of the same image keeps the editable copy.
+        *write.lock().unwrap_or_else(PoisonError::into_inner) = Some((w, h, rgba.to_vec()));
+        let Some(window) = web_sys::window() else { return Ok(()) };
+        let hook = js_sys::Reflect::get(&window, &JsValue::from_str(CLIPBOARD_WRITE)).unwrap_or(JsValue::UNDEFINED);
+        if let Some(f) = wasm_bindgen::JsCast::dyn_ref::<js_sys::Function>(&hook) {
+            // The page writes asynchronously; a refusal (no HTTPS, no permission) leaves the copy
+            // inside the app, where Edit › Paste still finds it.
+            let _ = f.call3(&JsValue::NULL, &JsValue::from(w), &JsValue::from(h), &js_sys::Uint8Array::from(rgba).into());
+        }
+        Ok(())
+    });
+    (get, set)
+}
 
 /// Installs `window.__photocraftNative` and marks the app as ready for page scripts.
-pub fn install(tx: Sender<ControlRequest>, ctx: egui::Context) {
+pub fn install(tx: Sender<ControlRequest>, ctx: egui::Context, clip: ClipSlot) {
     let Some(window) = web_sys::window() else { return };
+    let keyboard_ctx = ctx.clone();
     let call = Closure::<dyn FnMut(String, String) -> js_sys::Promise>::new(move |method: String, params: String| {
         let params: serde_json::Value = if params.trim().is_empty() {
             serde_json::Value::Null
@@ -55,15 +91,34 @@ pub fn install(tx: Sender<ControlRequest>, ctx: egui::Context) {
             }
         })
     });
+    let slot = clip.clone();
+    let set_clip = Closure::<dyn FnMut(u32, u32, js_sys::Uint8Array) -> bool>::new(move |w: u32, h: u32, rgba: js_sys::Uint8Array| {
+        let expected = (w as usize).checked_mul(h as usize).and_then(|n| n.checked_mul(4));
+        let ok = w > 0 && h > 0 && expected.is_some_and(|n| n <= MAX_CLIP_BYTES && n == rgba.length() as usize);
+        if ok {
+            *slot.lock().unwrap_or_else(PoisonError::into_inner) = Some((w, h, rgba.to_vec()));
+        }
+        ok
+    });
+    let clear_clip = Closure::<dyn FnMut()>::new(move || {
+        *clip.lock().unwrap_or_else(PoisonError::into_inner) = None;
+    });
+    let wants_keyboard = Closure::<dyn FnMut() -> bool>::new(move || keyboard_ctx.text_edit_focused());
     let api = js_sys::Object::new();
     let ok = js_sys::Reflect::set(&api, &JsValue::from_str("call"), call.as_ref()).is_ok()
+        && js_sys::Reflect::set(&api, &JsValue::from_str("setClipboardImage"), set_clip.as_ref()).is_ok()
+        && js_sys::Reflect::set(&api, &JsValue::from_str("clearClipboardImage"), clear_clip.as_ref()).is_ok()
+        && js_sys::Reflect::set(&api, &JsValue::from_str("wantsKeyboard"), wants_keyboard.as_ref()).is_ok()
         && js_sys::Reflect::set(&api, &JsValue::from_str("version"), &JsValue::from_str(env!("CARGO_PKG_VERSION"))).is_ok()
         && js_sys::Reflect::set(&window, &JsValue::from_str(GLOBAL), &api).is_ok();
     if !ok {
         log::error!("photocraft-web: could not install window.{GLOBAL}");
     }
-    // The page keeps the function for the app's whole lifetime.
+    // The page keeps the functions for the app's whole lifetime.
     call.forget();
+    set_clip.forget();
+    clear_clip.forget();
+    wants_keyboard.forget();
 }
 
 /// Resolves after `ms` milliseconds (a `setTimeout` promise).

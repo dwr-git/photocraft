@@ -250,6 +250,29 @@ body.studio-open #photocraft_canvas { width: calc(100% - var(--st-w)) !important
 #studio-root.acting .st-veil { opacity: 1; }
 @media (max-width: 760px) { .st-veil { right: 0; } }
 
+/* перетаскивание файлов */
+.st-drop {
+  position: fixed; inset: 12px; z-index: 60; pointer-events: none;
+  display: grid; place-items: center; border-radius: 24px;
+  border: 2px dashed var(--st-accent); background: color-mix(in srgb, var(--st-bg) 55%, transparent);
+  opacity: 0; transition: opacity .15s;
+}
+.st-drop span {
+  padding: 14px 20px; border-radius: 16px; font-weight: 600; color: var(--st-accent-text); background: var(--st-surface);
+  box-shadow: -6px -6px 14px var(--st-sh-light), 6px 6px 14px var(--st-sh-dark);
+}
+#studio-root.dropping .st-drop { opacity: 1; }
+
+/* короткие уведомления (вставка, открытие файлов) */
+.st-toast {
+  position: fixed; left: 50%; bottom: 28px; z-index: 70; transform: translate(-50%, 12px);
+  padding: 10px 16px; border-radius: 14px; font-size: 13px; color: var(--st-text);
+  background: var(--st-surface); box-shadow: -4px -4px 10px var(--st-sh-light), 4px 4px 12px var(--st-sh-dark);
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+}
+.st-toast.show { opacity: 1; transform: translate(-50%, 0); }
+.st-toast.err { color: var(--st-danger); }
+
 @media (prefers-reduced-motion: reduce) {
   .st-panel, .st-fab, .st-seg button { transition: none; }
   #studio-root.busy .st-logo span, .st-typing i { animation: none; }

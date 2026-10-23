@@ -245,6 +245,7 @@
   root.dataset.theme = 'light';
   root.innerHTML = `
     <div class="st-veil" aria-hidden="true"></div>
+    <div class="st-drop" aria-hidden="true"><span>Отпустите, чтобы открыть в редакторе</span></div>
     <aside class="st-panel" aria-label="Помощник">
       <header class="st-head">
         <div class="st-logo st-raised-sm" aria-hidden="true"><span></span></div>
@@ -592,6 +593,138 @@
       root.classList.remove('acting');
     }
   }
+
+  // ------------------------------------------------------------------ буфер обмена и перетаскивание
+  // Браузер отдаёт картинку из буфера обмена только странице (в событии paste), поэтому
+  // Ctrl+V перехватывается здесь: картинка уходит в редактор (setClipboardImage), а затем
+  // выполняется его «Вставить» — новый слой, а без документа — новый документ, как в Photoshop.
+  const native = () => window.__photocraftNative;
+  const fromPanel = (e) => root.contains(e.target);
+  const editingText = () => { try { return !!native().wantsKeyboard(); } catch { return false; } };
+  let pasteCommand = null;   // какую вставку просили с клавиатуры
+  let pasteTimer = 0;
+  let clipMirrored = false;  // последняя копия из редактора дошла до системного буфера
+
+  function toast(text, error) {
+    let t = root.querySelector('.st-toast');
+    if (!t) { t = document.createElement('div'); t.className = 'st-toast'; root.appendChild(t); }
+    t.textContent = text;
+    t.classList.toggle('err', !!error);
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 3200);
+  }
+  async function runPaste(id) {
+    try {
+      const r = await PC.exec(id);
+      if (r && r.pasted === false) toast('В буфере обмена нет картинки');
+    } catch (e) {
+      toast('Не удалось вставить: ' + (e.message || e), true);
+    }
+  }
+  async function decodeImage(file) {
+    const bmp = await createImageBitmap(file);
+    if (bmp.width * bmp.height > 16384 * 16384) throw new Error('картинка слишком большая');
+    const c = document.createElement('canvas');
+    c.width = bmp.width; c.height = bmp.height;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(bmp, 0, 0);
+    bmp.close?.();
+    const data = g.getImageData(0, 0, c.width, c.height).data;
+    return { w: c.width, h: c.height, rgba: new Uint8Array(data.buffer, data.byteOffset, data.byteLength) };
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (fromPanel(e) || !PC.ready() || e.altKey || !(e.ctrlKey || e.metaKey) || e.code !== 'KeyV') return;
+    if (editingText()) return; // в текстовом поле редактора Ctrl+V вставляет текст
+    pasteCommand = e.shiftKey ? 'edit.pasteSpecial.pasteInPlace' : 'edit.paste';
+    // Редактор не должен вставлять сам: содержимое буфера придёт следом, в событии paste.
+    e.stopImmediatePropagation();
+    clearTimeout(pasteTimer);
+    // Если браузер так и не пришлёт paste — вставляем то, что скопировано внутри редактора.
+    pasteTimer = setTimeout(() => { if (pasteCommand) { const id = pasteCommand; pasteCommand = null; runPaste(id); } }, 600);
+  }, true);
+
+  window.addEventListener('paste', (e) => {
+    if (fromPanel(e) || !PC.ready()) return;
+    const id = pasteCommand || 'edit.paste';
+    pasteCommand = null;
+    clearTimeout(pasteTimer);
+    const items = [...((e.clipboardData && e.clipboardData.items) || [])];
+    const item = items.find((i) => i.kind === 'file' && i.type.startsWith('image/'));
+    if (!item) {
+      if (editingText()) return; // текст — в поле ввода редактора
+      // Скопировали что-то другое после картинки из редактора: та картинка уже не в буфере.
+      if (clipMirrored) { native().clearClipboardImage(); clipMirrored = false; }
+      const hasText = !!e.clipboardData && [...e.clipboardData.types].includes('text/plain');
+      if (!hasText) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        runPaste(id);
+        return;
+      }
+      // Текст получает редактор (инструмент «Текст» вставит его в надпись); если надпись не
+      // редактируется — вставляем то, что скопировано внутри редактора.
+      PC.call('ui.inspect').then((ui) => { if (!ui.textEdit) runPaste(id); }).catch(() => {});
+      return;
+    }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const file = item.getAsFile();
+    if (!file) return;
+    decodeImage(file)
+      .then(({ w, h, rgba }) => {
+        if (!native().setClipboardImage(w, h, rgba)) throw new Error('картинка не подходит');
+        return runPaste(id);
+      })
+      .catch((err) => toast('Не удалось вставить картинку: ' + (err.message || err), true));
+  }, true);
+
+  // Копирование из редактора (Ctrl+C, Скопировать совмещённые) — в системный буфер обмена,
+  // чтобы вставить в другие программы. Нужен HTTPS; без него копия остаётся внутри редактора.
+  window.__studioClipboardWrite = (w, h, rgba) => {
+    clipMirrored = false;
+    if (!window.isSecureContext || !navigator.clipboard || !window.ClipboardItem) return;
+    try {
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, rgba.byteLength), w, h), 0, 0);
+      const png = new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error('png'))), 'image/png'));
+      navigator.clipboard.write([new window.ClipboardItem({ 'image/png': png })]).then(() => { clipMirrored = true; }, () => {});
+    } catch { /* копия остаётся внутри редактора */ }
+  };
+
+  // Перетаскивание файлов. На холст их принимает сам редактор (на документ — новым слоем,
+  // мимо — открывает). Брошенные на панель помощника или край страницы файлы браузер открыл
+  // бы вместо редактора — передаём их редактору: они открываются как новые документы.
+  const isFileDrag = (e) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+  let dropHideTimer = 0;
+  function showDrop(on) {
+    root.classList.toggle('dropping', on);
+    clearTimeout(dropHideTimer);
+    if (on) dropHideTimer = setTimeout(() => root.classList.remove('dropping'), 400);
+  }
+  window.addEventListener('dragover', (e) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    showDrop(true);
+  });
+  window.addEventListener('drop', (e) => {
+    showDrop(false);
+    if (!isFileDrag(e)) return;
+    const canvas = document.getElementById('photocraft_canvas');
+    if (!canvas || e.target === canvas) return;
+    e.preventDefault();
+    const files = [...e.dataTransfer.files];
+    if (!files.length) return;
+    const dt = new DataTransfer();
+    files.forEach((f) => dt.items.add(f));
+    // Точка у нижнего края холста — строка состояния, не документ: файлы откроются отдельно.
+    const r = canvas.getBoundingClientRect();
+    const opts = { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.left + r.width / 2, clientY: r.bottom - 4 };
+    for (const type of ['dragenter', 'dragover', 'drop']) canvas.dispatchEvent(new DragEvent(type, opts));
+    toast(files.length === 1 ? 'Открываю ' + files[0].name : 'Открываю файлы: ' + files.length);
+  });
 
   // ------------------------------------------------------------------ тема и запуск
   function applyPanelTheme(themeId) {
