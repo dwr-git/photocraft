@@ -16,7 +16,8 @@
 //! the other way through the page's `window.__studioClipboardWrite(width, height, rgba)`.
 //! `wantsKeyboard()` tells the page whether a text field has the keyboard (its ⌘V pastes text).
 //! `setBackdropFrame(left, top, width, height, pageWidth, pageHeight)` lays the Brand theme's
-//! backdrop out over the whole page rather than the canvas alone.
+//! backdrop out over the whole page rather than the canvas alone. `currentTheme()` is the id of
+//! the theme on screen, which the panel follows.
 
 use std::sync::mpsc::{Sender, TryRecvError};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -106,6 +107,10 @@ pub fn install(tx: Sender<ControlRequest>, ctx: egui::Context, clip: ClipSlot) {
         *clip.lock().unwrap_or_else(PoisonError::into_inner) = None;
     });
     let frame_ctx = keyboard_ctx.clone();
+    let theme_ctx = keyboard_ctx.clone();
+    // The theme on screen, however it was chosen (Window › Theme, Preferences, the appearance
+    // button, the system appearance): its id, as `window.theme.<id>` names it.
+    let current_theme = Closure::<dyn FnMut() -> String>::new(move || photocraft_ui_egui::theme::Tokens::get(&theme_ctx).kind.id().to_string());
     let wants_keyboard = Closure::<dyn FnMut() -> bool>::new(move || keyboard_ctx.text_edit_focused());
     // The page's viewport around the canvas (CSS px: the canvas's left and top in the page, its
     // size, the page's size), so the Brand backdrop lines up with the page's own CSS gradient.
@@ -129,6 +134,7 @@ pub fn install(tx: Sender<ControlRequest>, ctx: egui::Context, clip: ClipSlot) {
         && js_sys::Reflect::set(&api, &JsValue::from_str("clearClipboardImage"), clear_clip.as_ref()).is_ok()
         && js_sys::Reflect::set(&api, &JsValue::from_str("wantsKeyboard"), wants_keyboard.as_ref()).is_ok()
         && js_sys::Reflect::set(&api, &JsValue::from_str("setBackdropFrame"), set_frame.as_ref()).is_ok()
+        && js_sys::Reflect::set(&api, &JsValue::from_str("currentTheme"), current_theme.as_ref()).is_ok()
         && js_sys::Reflect::set(&api, &JsValue::from_str("version"), &JsValue::from_str(env!("CARGO_PKG_VERSION"))).is_ok()
         && js_sys::Reflect::set(&window, &JsValue::from_str(GLOBAL), &api).is_ok();
     if !ok {
@@ -140,6 +146,7 @@ pub fn install(tx: Sender<ControlRequest>, ctx: egui::Context, clip: ClipSlot) {
     clear_clip.forget();
     wants_keyboard.forget();
     set_frame.forget();
+    current_theme.forget();
 }
 
 /// Resolves after `ms` milliseconds (a `setTimeout` promise).

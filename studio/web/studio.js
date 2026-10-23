@@ -739,10 +739,11 @@
   });
 
   // ------------------------------------------------------------------ тема и запуск
+  const panelThemeOf = (themeId) => (themeId === 'brand' ? 'brand' : (DARK_THEMES.has(themeId) ? 'dark' : 'light'));
   function applyPanelTheme(themeId) {
     // Фирменная тема выбирается в редакторе (Окно › Тема › Тёмная тема); у панели — тот же вид.
     const brand = themeId === 'brand';
-    root.dataset.theme = brand ? 'brand' : (DARK_THEMES.has(themeId) ? 'dark' : 'light');
+    root.dataset.theme = panelThemeOf(themeId);
     document.documentElement.classList.toggle('studio-brand', brand);
     $('theme').innerHTML = root.dataset.theme === 'light' ? ICON.moon : ICON.sun;
   }
@@ -760,16 +761,25 @@
     if (PC.ready()) await PC.exec('window.theme.' + themeId).catch(() => {});
   }
   window.addEventListener('resize', () => setTimeout(syncBackdrop, 50));
+  // Тема, которая сейчас на экране, как бы её ни выбрали: меню, настройки, кнопка-луна
+  // в шапке редактора, системная светлая/тёмная.
+  async function shownTheme() {
+    try { const n = native(); if (n && typeof n.currentTheme === 'function') return n.currentTheme(); } catch { /* старая сборка */ }
+    const t = await PC.exec('prefs.get', { path: 'interface.theme' });
+    return typeof t === 'string' ? t : (t && t.value);
+  }
   async function watchTheme() {
-    // Тему можно сменить и в меню редактора (Окно › Тема): панель подстраивается.
     for (;;) {
-      await sleep(2500);
+      await sleep(1000);
       if (document.hidden || !PC.ready()) continue;
       try {
-        const t = await PC.exec('prefs.get', { path: 'interface.theme' });
-        const id = typeof t === 'string' ? t : (t && t.value);
-        // Тему выбрали в меню редактора — запоминаем её, чтобы после перезагрузки была та же.
-        if (id && id !== store.get('theme', '')) { store.set('theme', id); applyPanelTheme(id); syncBackdrop(); }
+        const id = await shownTheme();
+        // Тему сменили в редакторе — панель подстраивается и запоминает её до перезагрузки.
+        if (id && (id !== store.get('theme', '') || root.dataset.theme !== panelThemeOf(id))) {
+          store.set('theme', id);
+          applyPanelTheme(id);
+          syncBackdrop();
+        }
       } catch { /* не важно */ }
     }
   }
@@ -816,6 +826,16 @@
     root.classList.add('ready');
     syncBackdrop();
     if (CFG.language) await PC.exec('prefs.set', { path: 'interface.language', value: CFG.language }).catch(() => {});
+    // Кнопка-луна в шапке редактора переключает светлый/тёмный режим: пусть это будут
+    // неоморфные темы, а не стандартные серые (если пользователь не выбрал другие сам).
+    try {
+      const dark = await PC.exec('prefs.get', { path: 'interface.darkTheme' });
+      const light = await PC.exec('prefs.get', { path: 'interface.lightTheme' });
+      const values = {};
+      if (dark === 'proMedium') values['interface.darkTheme'] = 'neuDark';
+      if (light === 'proLight') values['interface.lightTheme'] = 'neuLight';
+      if (Object.keys(values).length) await PC.exec('prefs.set', { values });
+    } catch { /* старые настройки — не страшно */ }
     await setTheme(store.get('theme', CFG.defaultTheme));
     if (store.get('open', CFG.openOnStart)) setOpen(true);
     commands().catch(() => {});
