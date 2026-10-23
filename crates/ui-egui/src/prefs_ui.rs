@@ -2941,7 +2941,8 @@ mod tests {
         assert_eq!(t.kind, kind);
         for style in [ctx.global_style(), ctx.style_of(egui::Theme::Light), ctx.style_of(egui::Theme::Dark)] {
             assert_eq!(style.visuals.panel_fill, t.chrome);
-            assert_eq!(style.visuals.window_fill, t.card);
+            // Brand windows (menus, dialogs) are solid black slabs over its glass cards.
+            assert_eq!(style.visuals.window_fill, if t.backdrop() { egui::Color32::BLACK } else { t.card });
             assert_eq!(style.visuals.override_text_color, Some(t.text));
             assert_eq!(style.visuals.widgets.inactive.bg_fill, t.field);
             assert_eq!(style.visuals.dark_mode, t.dark());
