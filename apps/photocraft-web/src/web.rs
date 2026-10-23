@@ -94,6 +94,7 @@ pub fn start() {
                     let (clip_get, clip_set) = crate::control_bridge::clipboard_services(&clip);
                     services.clipboard_get_image = Some(clip_get);
                     services.clipboard_set_image = Some(clip_set);
+                    services.go_home = Some(Box::new(go_home));
                     let mut app = PhotocraftApp::new(session, services).with_control(control_rx);
                     crate::control_bridge::install(control_tx, cc.egui_ctx.clone(), clip);
                     if !preset_warnings.is_empty() {
@@ -458,6 +459,21 @@ fn services(inbox: Inbox, place_inbox: Inbox, cursor_pos: photocraft_ui_egui::Cu
 }
 
 const PREFS_KEY: &str = "photocraft.preferences";
+
+/// The title bar's Home button: to the page's `STUDIO_CONFIG.homeUrl`, one level up (`../`) by
+/// default. Leaving with unsaved documents still asks first (`guard_unload`).
+fn go_home() {
+    let Some(window) = web_sys::window() else { return };
+    let url = js_sys::Reflect::get(&window, &wasm_bindgen::JsValue::from_str("STUDIO_CONFIG"))
+        .ok()
+        .and_then(|cfg| js_sys::Reflect::get(&cfg, &wasm_bindgen::JsValue::from_str("homeUrl")).ok())
+        .and_then(|v| v.as_string())
+        .filter(|u| !u.trim().is_empty())
+        .unwrap_or_else(|| "../".into());
+    if let Err(e) = window.location().set_href(&url) {
+        log::warn!("photocraft-web: could not go home: {e:?}");
+    }
+}
 
 fn local_storage() -> Option<web_sys::Storage> {
     web_sys::window()?.local_storage().ok().flatten()

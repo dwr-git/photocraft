@@ -599,6 +599,9 @@ pub struct Services {
     pub encode_png: Option<EncodePngFn>,
     /// Open a URL in the system browser (native). Falls back to `ctx.open_url` (web) when unset.
     pub open_url: Option<OpenUrlFn>,
+    /// Leave for the host's home page (the web build inside a larger site). When set, the title
+    /// bar shows a Home button at its far end.
+    pub go_home: Option<Box<dyn FnMut()>>,
     /// Preferences ▸ General ▸ Beep When Done: the platform's default beep, played when a
     /// background job finishes successfully. `None` in the web build (and in tests).
     pub beep: Option<fn()>,

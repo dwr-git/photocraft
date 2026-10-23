@@ -669,6 +669,12 @@ pub fn title_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                 let controls_end = {
                     let ui = &mut group_ui;
                     ui.spacing_mut().item_spacing.x = 6.0;
+                    // A site hosting the editor offers a way back to its home page, at the far end.
+                    if app.services.go_home.is_some() && icons::button(ui, "house", 28.0, false, tl!("Home")).clicked()
+                        && let Some(go) = app.services.go_home.as_mut()
+                    {
+                        go();
+                    }
                     let mut ws = app.ui.workspace.clone();
                     let options = crate::workspace_ui::switcher_options(app);
                     let opts: Vec<(String, &str)> = options.iter().map(|(k, l)| (k.clone(), l.as_str())).collect();
