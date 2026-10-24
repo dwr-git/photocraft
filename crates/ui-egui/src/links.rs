@@ -13,8 +13,9 @@ pub const GITHUB: &str = "https://github.com/storytold/photocraft";
 pub const ISSUES: &str = "https://github.com/storytold/photocraft/issues";
 
 /// Help-menu link commands: (id, url). Labels live in `menus::UI_COMMANDS`.
-pub const COMMANDS: &[(&str, &str)] =
-    &[("help.discord", DISCORD), ("help.website", APP_PAGE), ("help.artcraftWebsite", ARTCRAFT_WEBSITE), ("help.github", GITHUB), ("help.reportIssue", ISSUES)];
+/// AI-Photoshop is self-hosted and works offline, so the Help menu sends nobody to the original
+/// project's sites: the list is empty and the constants above stay for the shared code.
+pub const COMMANDS: &[(&str, &str)] = &[];
 
 pub fn url_for(id: &str) -> Option<&'static str> {
     COMMANDS.iter().find(|c| c.0 == id).map(|c| c.1)
@@ -102,24 +103,16 @@ mod tests {
     fn help_menu_lists_links_then_separator_then_system_info_and_about() {
         let app = PhotocraftApp::new(photocraft_engine::Session::new(), Default::default());
         let help: Vec<String> = crate::menus::menu_items(&app).into_iter().filter(|i| i.path == ["Help"]).map(|i| i.id).collect();
-        assert_eq!(help, ["help.discord", "help.website", "help.artcraftWebsite", "help.github", "help.reportIssue", "---", "help.systemInfo", "help.about"]);
+        assert_eq!(help, ["help.systemInfo", "help.about"]);
         for (id, _) in COMMANDS {
             assert!(crate::menus::is_live(id) && crate::menus::is_enabled(&app, id), "{id}");
         }
     }
 
     #[test]
-    fn link_commands_open_their_urls() {
-        let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), Default::default());
-        let ctx = egui::Context::default();
-        for (id, url) in [
-            ("help.discord", "https://discord.gg/artcraft"),
-            ("help.website", "https://getartcraft.com/apps/photocraft"),
-            ("help.github", "https://github.com/storytold/photocraft"),
-        ] {
-            let r = crate::menus::invoke(&mut app, &ctx, id, serde_json::json!({})).unwrap();
-            assert_eq!(r["url"], url);
-            assert_eq!(app.ui.status, format!("Opened {url}"));
+    fn no_command_leaves_for_an_outside_site() {
+        for id in ["help.discord", "help.website", "help.artcraftWebsite", "help.github", "help.reportIssue"] {
+            assert!(url_for(id).is_none(), "{id}");
         }
     }
 }

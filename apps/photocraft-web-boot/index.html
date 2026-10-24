@@ -1,26 +1,36 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-app-bytes="0">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <title>PhotoCraft</title>
+  <title>AI-Photoshop</title>
   <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-  <link data-trunk rel="rust" data-bin="photocraft-web-boot" data-cargo-profile="wasm-release" data-wasm-opt="z" data-wasm-opt-params="--converge" data-weak-refs />
+  <!-- Shows download progress and, if the start fails, which file and why. Everything loads from this folder only. -->
+  <script src="studio/loader.js"></script>
+  <link data-trunk rel="rust" data-bin="ai-photoshop" data-cargo-profile="wasm-release" data-wasm-opt="z" data-wasm-opt-params="--converge" data-weak-refs />
   <style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #e4ecf6; }
     #photocraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
     #photocraft_loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
       padding: 0 16px; text-align: center; color: #34445e; font: 14px system-ui, sans-serif; pointer-events: none; }
-    #photocraft_loading p { margin: 0 0 8px; max-width: 420px; line-height: 1.5; }
+    #photocraft_loading p { margin: 0 0 8px; max-width: 460px; line-height: 1.5; }
     #photocraft_loading a { color: #1652a8; pointer-events: auto; }
+    #ap_track { width: min(320px, 80vw); height: 6px; margin: 4px 0 10px; border-radius: 3px; background: rgba(52, 68, 94, .15); overflow: hidden; }
+    #ap_bar { width: 0; height: 100%; border-radius: 3px; background: #3480e2; transition: width .2s; }
+    #ap_progress { font-variant-numeric: tabular-nums; min-height: 1.5em; }
+    #ap_problem { color: #b42318; text-align: left; pointer-events: auto; user-select: text; }
+    #ap_problem[hidden] { display: none; }
     /* The app removes this element once it runs. If the WebAssembly never downloads or doesn't match
        this page, no Rust runs to say so, so the page itself shows what to do after a while. */
-    #photocraft_stalled { color: #4e5e78; visibility: hidden; animation: photocraft-stalled 0s 20s forwards; }
+    #photocraft_stalled { color: #4e5e78; visibility: hidden; animation: photocraft-stalled 0s 25s forwards; }
     @keyframes photocraft-stalled { to { visibility: visible; } }
     @media (prefers-color-scheme: dark) {
       html, body { background: #262d3a; }
       #photocraft_loading { color: #c4cfe0; }
       #photocraft_loading a { color: #8ec6ff; }
+      #ap_track { background: rgba(196, 207, 224, .15); }
+      #ap_bar { background: #5ca8ff; }
+      #ap_problem { color: #ff9b8f; }
       #photocraft_stalled { color: #a0adc2; }
     }
   </style>
@@ -32,10 +42,12 @@
 <body>
   <canvas id="photocraft_canvas"></canvas>
   <div id="photocraft_loading">
-    <p>Загрузка PhotoCraft&hellip;</p>
-    <p id="photocraft_stalled">Загрузка идёт дольше обычного. Если PhotoCraft не запускается, файлы могли не скачаться
-      или относиться к другой версии страницы. <a href="">Обновите страницу</a>; список ошибок —
-      в консоли браузера.</p>
+    <p>Загрузка AI-Photoshop&hellip;</p>
+    <div id="ap_track"><div id="ap_bar"></div></div>
+    <p id="ap_progress"></p>
+    <p id="ap_problem" hidden></p>
+    <p id="photocraft_stalled">Загрузка идёт дольше обычного. Если AI-Photoshop не запускается, файлы могли не скачаться
+      или относиться к другой версии страницы. <a href="">Обновите страницу</a>; подробности — в консоли браузера (F12).</p>
   </div>
 </body>
 </html>

@@ -1,5 +1,5 @@
 <?php
-// studio/api/assistant.php — помощник PhotoCraft: мост между панелью в браузере и Ollama.
+// studio/api/assistant.php — помощник AI-Photoshop: мост между панелью в браузере и Ollama.
 //
 //   GET  assistant.php            проверка: вошёл ли пользователь, какая модель, доступна ли она
 //   POST assistant.php            {mode: "advice"|"act", messages: [...]} → {ok, message: {content, tool_calls}}
@@ -25,7 +25,7 @@ function studio_fail(int $http, string $message, array $extra = []): void
 // Предупреждения PHP не должны ломать JSON-ответ.
 ini_set('display_errors', '0');
 set_exception_handler(static function (Throwable $e): void {
-    error_log('photocraft assistant: ' . $e->getMessage());
+    error_log('ai-photoshop assistant: ' . $e->getMessage());
     studio_fail(500, 'Внутренняя ошибка помощника. Подробности — в журнале PHP.');
 });
 
@@ -43,7 +43,7 @@ if ($STUDIO['auth_file'] !== '' && is_file($STUDIO['auth_file'])) {
     }
     $__authed = true;
 } elseif (!$STUDIO['allow_anonymous']) {
-    studio_fail(500, 'Не найден auth.php системы. Укажите путь в PHOTOCRAFT_AUTH_FILE (см. studio/README.ru.md).');
+    studio_fail(500, 'Не найден auth.php системы. Укажите путь в AI_PHOTOSHOP_AUTH_FILE (см. studio/README.ru.md).');
 }
 // Сессия больше не нужна: отпускаем её блокировку, иначе пока модель думает,
 // остальные страницы этого пользователя будут ждать.
@@ -51,11 +51,11 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
 }
 if (function_exists('setLLMApp')) {
-    setLLMApp('photocraft');
+    setLLMApp('ai-photoshop');
 }
 
 // ---------------------------------------------------------------- модель
-$ollamaUrl = studio_env('PHOTOCRAFT_OLLAMA_URL');
+$ollamaUrl = studio_env('AI_PHOTOSHOP_OLLAMA_URL');
 if ($ollamaUrl === '') {
     $hostPort = (isset($url_ollama) && is_string($url_ollama) && trim($url_ollama, ':') !== '') ? $url_ollama : '';
     if ($hostPort === '') {
@@ -66,8 +66,8 @@ if ($ollamaUrl === '') {
     $ollamaUrl = preg_match('#^https?://#i', $hostPort) ? $hostPort : 'http://' . $hostPort;
 }
 $ollamaUrl = rtrim($ollamaUrl, '/');
-$model = studio_env('PHOTOCRAFT_MODEL') ?: ((isset($global_model) && is_string($global_model) && $global_model !== '') ? $global_model : studio_env('GLOBAL_MODEL', 'ministral-3:8b'));
-$ctx = (int)(studio_env('PHOTOCRAFT_CONTEXT') ?: ((isset($ollama_ctxsize) && (int)$ollama_ctxsize > 0) ? $ollama_ctxsize : '32768'));
+$model = studio_env('AI_PHOTOSHOP_MODEL') ?: ((isset($global_model) && is_string($global_model) && $global_model !== '') ? $global_model : studio_env('GLOBAL_MODEL', 'ministral-3:8b'));
+$ctx = (int)(studio_env('AI_PHOTOSHOP_CONTEXT') ?: ((isset($ollama_ctxsize) && (int)$ollama_ctxsize > 0) ? $ollama_ctxsize : '32768'));
 
 // ---------------------------------------------------------------- GET: проверка
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
@@ -208,7 +208,7 @@ if ($mode === 'suggest') {
     $payload['tools'] = $tools;
 }
 if (function_exists('enrichLLMPayload')) {
-    enrichLLMPayload($payload, 'photocraft'); // трекинг на шлюзе, как у остальных приложений
+    enrichLLMPayload($payload, 'ai-photoshop'); // трекинг на шлюзе, как у остальных приложений
 }
 
 // ---------------------------------------------------------------- запрос к модели
@@ -239,10 +239,10 @@ if (isset($res['error'])) {
     $err = is_array($res['error']) ? (string)($res['error']['message'] ?? json_encode($res['error'], JSON_UNESCAPED_UNICODE)) : (string)$res['error'];
     // Модель не умеет вызывать инструменты — скажем об этом понятно.
     if (stripos($err, 'does not support tools') !== false) {
-        studio_fail(400, "Модель «{$model}» не умеет вызывать инструменты. Укажите в .env PHOTOCRAFT_MODEL с поддержкой tools (например ministral-3:8b или qwen3).");
+        studio_fail(400, "Модель «{$model}» не умеет вызывать инструменты. Укажите в .env AI_PHOTOSHOP_MODEL с поддержкой tools (например ministral-3:8b или qwen3).");
     }
     if (stripos($err, 'image') !== false && stripos($err, 'support') !== false) {
-        studio_fail(400, "Модель «{$model}» не принимает картинки. Выключите «глаз» в панели или укажите мультимодальную модель в PHOTOCRAFT_MODEL.", ['noVision' => true]);
+        studio_fail(400, "Модель «{$model}» не принимает картинки. Выключите «глаз» в панели или укажите мультимодальную модель в AI_PHOTOSHOP_MODEL.", ['noVision' => true]);
     }
     studio_fail($http >= 400 ? $http : 502, '⚠️ ' . $err);
 }

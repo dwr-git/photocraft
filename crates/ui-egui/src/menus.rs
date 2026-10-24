@@ -1078,8 +1078,11 @@ pub fn menu_items(app: &PhotocraftApp) -> Vec<MenuItem> {
             items.insert(after + 1 + k, it);
         }
     }
-    // Help: the link items, a separator, then System Info and About.
-    if let Some(at) = items.iter().position(|i| i.id == "help.systemInfo" || i.id == "help.about") {
+    // Help: the link items (if any), a separator, then System Info and About.
+    if let Some(at) = items.iter().position(|i| i.id == "help.systemInfo" || i.id == "help.about")
+        && at > 0
+        && items[at - 1].path.first().map(String::as_str) == Some("Help")
+    {
         items.insert(
             at,
             MenuItem { id: "---".into(), label: "---".into(), path: vec!["Help".into()], shortcut: None, enabled: false, checked: None, color: None },

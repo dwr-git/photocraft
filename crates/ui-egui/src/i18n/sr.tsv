@@ -769,9 +769,9 @@
 	Timeline	Vremenska linija
 	Tool Presets	Šabloni alatki
 	Tools	Alatke
-	About PhotoCraft	O programu PhotoCraft
-	PhotoCraft Website	Veb-sajt PhotoCraft-a
-	PhotoCraft on GitHub	PhotoCraft na GitHub-u
+	About PhotoCraft	O programu AI-Photoshop
+	PhotoCraft Website	Veb-sajt AI-Photoshop-a
+	PhotoCraft on GitHub	AI-Photoshop na GitHub-u
 	ArtCraft Website	Veb-sajt ArtCraft-a
 	Join the ArtCraft Discord…	Pridružite se ArtCraft Discord zajednici…
 	Report an Issue…	Prijavi problem…
@@ -827,7 +827,7 @@
 	All Caps	Sve velika slova
 	All Slices	Svi isečci
 	All User Slices	Svi korisnički isečci
-	All shortcuts reset to PhotoCraft defaults.	Sve prečice su vraćene na podrazumevane vrednosti PhotoCraft-a.
+	All shortcuts reset to PhotoCraft defaults.	Sve prečice su vraćene na podrazumevane vrednosti AI-Photoshop-a.
 	Alt	Alt
 	Always use pressure for opacity	Uvek koristi pritisak za neprozirnost
 	Always use pressure for size	Uvek koristi pritisak za veličinu
@@ -1310,9 +1310,9 @@
 	Perspective Warp is not active	Perspektivno krivljenje nije aktivno
 	Perspective Warp: draw planes along the image's perspective, then switch to Warp	Perspektivno krivljenje: nacrtajte ravni duž perspektive slike, a zatim pređite na krivljenje
 	Photo Filter	Foto-filter
-	PhotoCraft	PhotoCraft
-	PhotoCraft Manages Colors	PhotoCraft upravlja bojama
-	PhotoCraft — an open-source, native image editor written in Rust.	PhotoCraft — izvorni uređivač slika otvorenog koda, napisan u Rust-u.
+	PhotoCraft	AI-Photoshop
+	PhotoCraft Manages Colors	AI-Photoshop upravlja bojama
+	PhotoCraft — an open-source, native image editor written in Rust.	AI-Photoshop — izvorni uređivač slika otvorenog koda, napisan u Rust-u.
 	Pin Depth:	Dubina čiode:
 	Pixel Length:	Dužina u pikselima:
 	Pixels/Centimeter	Piksela/centimetar
@@ -1388,11 +1388,11 @@
 	Import Shortcuts…	Uvezi prečice…
 	Load a keyboard shortcut set saved as .kys	Učitaj skup prečica sačuvan kao .kys
 	Imported {n} shortcuts from {file}. Click OK to keep them.	Uvezeno {n} prečica iz {file}. Kliknite U redu da ih zadržite.
-	{n} commands are not in PhotoCraft.	{n} komandi ne postoji u PhotoCraft-u.
+	{n} commands are not in PhotoCraft.	{n} komandi ne postoji u AI-Photoshop-u.
 	Keyboard shortcuts imported	Prečice na tastaturi su uvezene
 	Your keyboard shortcut set {set} is in use here: {n} shortcuts differ from the defaults. Edit › Keyboard Shortcuts shows them; Reset All to Defaults undoes this.	Ovde se koristi vaš skup prečica {set}: {n} prečica se razlikuje od podrazumevanih. Uređivanje › Prečice na tastaturi ih prikazuje; Vrati sve na podrazumevano poništava ovo.
 	Import keyboard shortcuts?	Uvesti prečice na tastaturi?
-	PhotoCraft found your keyboard shortcut set {set} from another image editor on this computer: {n} of its shortcuts differ from PhotoCraft's. Import it?	PhotoCraft je na ovom računaru pronašao vaš skup prečica {set} iz drugog uređivača slika: {n} prečica se razlikuje od PhotoCraft-ovih. Uvesti ga?
+	PhotoCraft found your keyboard shortcut set {set} from another image editor on this computer: {n} of its shortcuts differ from PhotoCraft's. Import it?	AI-Photoshop je na ovom računaru pronašao vaš skup prečica {set} iz drugog uređivača slika: {n} prečica se razlikuje od AI-Photoshop-ovih. Uvesti ga?
 	Edit › Keyboard Shortcuts › Reset All to Defaults undoes an import.	Uređivanje › Prečice na tastaturi › Vrati sve na podrazumevano poništava uvoz.
 	Don't Import	Nemoj uvesti
 	The keyboard shortcut set was not imported: {error}	Skup prečica nije uvezen: {error}
@@ -1615,7 +1615,7 @@
 	Current Tool	Tekuća alatka
 	Custom Shape Tool	Alatka za prilagođeni oblik
 	Cyans	Cijan
-	Default PhotoCraft Size	Podrazumevana veličina PhotoCraft-a
+	Default PhotoCraft Size	Podrazumevana veličina AI-Photoshop-a
 	Delete Workspace	Obriši radni prostor
 	Diamond	Romb
 	Dimensions:	Dimenzije:
@@ -1728,7 +1728,7 @@
 	Pen Tool	Alatka pero
 	Convert Point Tool	Alatka za pretvaranje tačke
 	Photo	Fotografija
-	PhotoCraft website	Veb-sajt PhotoCraft-a
+	PhotoCraft website	Veb-sajt AI-Photoshop-a
 	Picas	Pike
 	Pillow Emboss	Jastučasti reljef
 	Pixel Replacement	Zamena piksela
@@ -2055,7 +2055,7 @@
 	System Info	Informacije o sistemu
 	More panels	Više panela
 	More documents	Više dokumenata
-	These settings aren't available in PhotoCraft yet.	Ova podešavanja još nisu dostupna u PhotoCraft-u.
+	These settings aren't available in PhotoCraft yet.	Ova podešavanja još nisu dostupna u AI-Photoshop-u.
 	Graphics	Grafika
 	Reset GPU Backend	Resetuj GPU pozadinski sistem
 	Applies at next launch.	Primenjuje se pri sledećem pokretanju.
@@ -2648,8 +2648,8 @@
 	Overprint	Pretisak
 	Native file drag-and-drop is unavailable	Izvorno prevlačenje i otpuštanje datoteka nije dostupno
 	Native file drag-and-drop is not supported on Wayland yet. Use File › Open, or copy the image in your file manager and paste it with {paste}.	Izvorno prevlačenje i otpuštanje datoteka još nije podržano na Wayland-u. Koristite Datoteka › Otvori ili kopirajte sliku u menadžeru datoteka i nalepite je pomoću {paste}.
-	To drop files, start PhotoCraft under XWayland: `{command}`	Da biste otpuštali datoteke, pokrenite PhotoCraft pod XWayland-om: `{command}`
-	Or set Preferences › Performance › Linux display server to X11: PhotoCraft then always starts under XWayland.	Ili postavite Podešavanja › Performanse › Linux server prikaza na X11: PhotoCraft će se tada uvek pokretati pod XWayland-om.
+	To drop files, start PhotoCraft under XWayland: `{command}`	Da biste otpuštali datoteke, pokrenite AI-Photoshop pod XWayland-om: `{command}`
+	Or set Preferences › Performance › Linux display server to X11: PhotoCraft then always starts under XWayland.	Ili postavite Podešavanja › Performanse › Linux server prikaza na X11: AI-Photoshop će se tada uvek pokretati pod XWayland-om.
 	Edit › Paste	Uređivanje › Nalepi
 	Use File › Open, or paste a copied image with {paste}.	Koristite Datoteka › Otvori ili nalepite kopiranu sliku pomoću {paste}.
 	Mixer Brush Tool	Alatka četkica za mešanje
@@ -2665,7 +2665,7 @@
 	Automatic uses GPU acceleration when available and falls back to CPU rendering on errors.	Automatski režim koristi GPU ubrzanje kada je dostupno, a u slučaju grešaka prelazi na renderovanje procesorom.
 	Switched to CPU rendering	Prebačeno na renderovanje procesorom
 	GPU acceleration could not continue. Your documents are unchanged.	GPU ubrzanje nije moglo da se nastavi. Vaši dokumenti su nepromenjeni.
-	PhotoCraft is using the CPU image compositor. The window may still use your graphics adapter.	PhotoCraft koristi CPU kompozitor slike. Prozor i dalje može da koristi vaš grafički adapter.
+	PhotoCraft is using the CPU image compositor. The window may still use your graphics adapter.	AI-Photoshop koristi CPU kompozitor slike. Prozor i dalje može da koristi vaš grafički adapter.
 	Retry GPU requires a restart. Save your work first.	Ponovni pokušaj sa GPU-om zahteva ponovno pokretanje. Prvo sačuvajte svoj rad.
 	Retry GPU tries the graphics processor again now.	Ponovo pokušaj sa GPU-om odmah ponovo isprobava grafički procesor.
 	GPU acceleration resumed.	GPU ubrzanje je nastavljeno.
@@ -2903,7 +2903,7 @@ fontWeight	Italic	Kurziv
 	Color to Alpha…	Boja u alfu…
 	Transparency Threshold	Prag providnosti
 	Opacity Threshold	Prag neprozirnosti
-	PhotoCraft — Screen Color Picker	PhotoCraft — birač boja sa ekrana
+	PhotoCraft — Screen Color Picker	AI-Photoshop — birač boja sa ekrana
 
 	Rasterize svg groups deeper than	Rasterizuj SVG grupe dublje od
 	0 turns this threshold off; SVG groups nested deeper than 100 levels are always rasterized.	0 isključuje ovaj prag; SVG grupe ugnežđene dublje od 100 nivoa uvek se rasterizuju.
@@ -3319,7 +3319,7 @@ layerLabel	No Color	Bez boje
 	Restart Required	Potrebno je ponovno pokretanje
 	Restart	Ponovo pokreni
 	Quit	Izađi
-	Quit PhotoCraft	Izađi iz PhotoCraft-a
+	Quit PhotoCraft	Izađi iz AI-Photoshop-a
 	Close Window	Zatvori prozor
 	New Window	Novi prozor
 	Open Image	Otvori sliku
@@ -3824,7 +3824,7 @@ layerLabel	No Color	Bez boje
 	Mezzotint	Mecotinta
 	Mosaic	Mozaik
 	Motion Blur	Zamućenje pokreta
-	Native file drag-and-drop is not supported on Wayland yet. Use File › Open, or run PhotoCraft under XWayland with `WAYLAND_DISPLAY= photocraft`.	Izvorno prevlačenje i otpuštanje datoteka još nije podržano na Wayland-u. Koristite Datoteka › Otvori ili pokrenite PhotoCraft pod XWayland-om pomoću `WAYLAND_DISPLAY= photocraft`.
+	Native file drag-and-drop is not supported on Wayland yet. Use File › Open, or run PhotoCraft under XWayland with `WAYLAND_DISPLAY= photocraft`.	Izvorno prevlačenje i otpuštanje datoteka još nije podržano na Wayland-u. Koristite Datoteka › Otvori ili pokrenite AI-Photoshop pod XWayland-om pomoću `WAYLAND_DISPLAY= photocraft`.
 	Neon Glow	Neonski sjaj
 	New Guide Layout	Novi raspored vodilja
 	New Video Layer from File	Novi video sloj iz datoteke
@@ -4005,9 +4005,9 @@ layerLabel	No Color	Bez boje
 	Saved {path}; image assets: {n} in {dir}	Sačuvano: {path}; slikovni resursi: {n} u {dir}
 	{message} (notes: {n}; {warning})	{message} (beleške: {n}; {warning})
 	Preferences can't be saved	Podešavanja ne mogu da se sačuvaju
-	PhotoCraft keeps retrying; until a save succeeds, preference changes are lost when it closes.	PhotoCraft nastavlja da pokušava; dok čuvanje ne uspe, izmene podešavanja se gube pri zatvaranju.
+	PhotoCraft keeps retrying; until a save succeeds, preference changes are lost when it closes.	AI-Photoshop nastavlja da pokušava; dok čuvanje ne uspe, izmene podešavanja se gube pri zatvaranju.
 	GPU retry scheduled	Zakazan je ponovni pokušaj sa GPU-om
-	Save your work and restart PhotoCraft to retry GPU acceleration. CPU rendering remains active for this session.	Sačuvajte svoj rad i ponovo pokrenite PhotoCraft da biste ponovo pokušali GPU ubrzanje. Renderovanje procesorom ostaje aktivno do kraja ove sesije.
+	Save your work and restart PhotoCraft to retry GPU acceleration. CPU rendering remains active for this session.	Sačuvajte svoj rad i ponovo pokrenite AI-Photoshop da biste ponovo pokušali GPU ubrzanje. Renderovanje procesorom ostaje aktivno do kraja ove sesije.
 	GPU device was lost; using the CPU renderer.	GPU uređaj je izgubljen; koristi se renderovanje procesorom.
 	GPU error; using the CPU renderer.	Greška GPU-a; koristi se renderovanje procesorom.
 	Couldn't open {name}: {error}	Otvaranje {name} nije uspelo: {error}
@@ -4223,7 +4223,7 @@ shape	Appearance	Izgled
 	{name} (Photoshop)	{name} (Photoshop)
 	{message} ({note})	{message} ({note})
 @plural	Loaded {n} action from {file}|Loaded {n} actions from {file}	Učitana je {n} radnja iz {file}|Učitane su {n} radnje iz {file}|Učitano je {n} radnji iz {file}
-@plural	{n} step has no PhotoCraft equivalent yet|{n} steps have no PhotoCraft equivalent yet	{n} korak još nema ekvivalent u PhotoCraftu|{n} koraka još nemaju ekvivalent u PhotoCraftu|{n} koraka još nema ekvivalent u PhotoCraftu
+@plural	{n} step has no PhotoCraft equivalent yet|{n} steps have no PhotoCraft equivalent yet	{n} korak još nema ekvivalent u AI-Photoshopu|{n} koraka još nemaju ekvivalent u AI-Photoshopu|{n} koraka još nema ekvivalent u AI-Photoshopu
 @plural	Saved {n} action to {file}|Saved {n} actions to {file}	Sačuvana je {n} radnja u {file}|Sačuvane su {n} radnje u {file}|Sačuvano je {n} radnji u {file}
 @plural	{n} step with no Photoshop equivalent left out|{n} steps with no Photoshop equivalent left out	Izostavljen je {n} korak bez ekvivalenta u Photoshopu|Izostavljena su {n} koraka bez ekvivalenta u Photoshopu|Izostavljeno je {n} koraka bez ekvivalenta u Photoshopu
 	Insert Stop…	Umetni zaustavljanje…
@@ -4314,12 +4314,12 @@ shape	Appearance	Izgled
 	Bicubic Smoother	Bikubično glađe
 	Bicubic Sharper	Bikubično oštrije
 	Pasting from other apps is unavailable	Lepljenje iz drugih aplikacija nije dostupno
-	PhotoCraft can't reach the system clipboard in this session. On Wayland, a Flatpak sandbox hides the protocol that images from other apps are read through.	PhotoCraft u ovoj sesiji ne može da pristupi sistemskoj ostavi. Na Wayland-u, Flatpak sandbox skriva protokol preko kog se čitaju slike iz drugih aplikacija.
-	To paste from other apps, start PhotoCraft under XWayland: `{command}`	Da biste lepili iz drugih aplikacija, pokrenite PhotoCraft pod XWayland-om: `{command}`
-	Nothing to paste: PhotoCraft can't read the system clipboard here	Nema šta da se nalepi: PhotoCraft ovde ne može da čita sistemsku ostavu
+	PhotoCraft can't reach the system clipboard in this session. On Wayland, a Flatpak sandbox hides the protocol that images from other apps are read through.	AI-Photoshop u ovoj sesiji ne može da pristupi sistemskoj ostavi. Na Wayland-u, Flatpak sandbox skriva protokol preko kog se čitaju slike iz drugih aplikacija.
+	To paste from other apps, start PhotoCraft under XWayland: `{command}`	Da biste lepili iz drugih aplikacija, pokrenite AI-Photoshop pod XWayland-om: `{command}`
+	Nothing to paste: PhotoCraft can't read the system clipboard here	Nema šta da se nalepi: AI-Photoshop ovde ne može da čita sistemsku ostavu
 	Delete this set	Obriši ovaj skup
 	New Set…	Novi skup…
-	PhotoCraft Defaults	Podrazumevano za PhotoCraft
+	PhotoCraft Defaults	Podrazumevano za AI-Photoshop
 	Save a list of these shortcuts as a web page	Sačuvaj listu ovih prečica kao veb stranicu
 	Save the changes to this set	Sačuvaj izmene u ovom skupu
 	Save these shortcuts as a .kys file	Sačuvaj ove prečice kao .kys datoteku

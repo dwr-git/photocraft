@@ -2,7 +2,7 @@
 #
 # Запускается на каждое изменение ветки main и вручную (Actions → «Сборка» → Run workflow).
 # Результат:
-#   - Releases → «Последняя сборка» (studio-latest): photocraft-studio-<версия>.zip
+#   - Releases → «Последняя сборка» (studio-latest): ai-photoshop-<версия>.zip
 #   - Actions → запуск → Artifacts: тот же zip
 # Rust, trunk и всё остальное ставятся только здесь, на машине GitHub. На ваш сервер
 # попадают готовые файлы: index.html, js, сжатый wasm, PHP помощника.
@@ -59,8 +59,8 @@ jobs:
       - name: Сохранить zip в Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: photocraft-studio
-          path: dist/release/photocraft-studio-*.zip
+          name: ai-photoshop
+          path: dist/release/ai-photoshop-*.zip
           retention-days: 30
           if-no-files-found: error
 
@@ -68,10 +68,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ZIP=$(ls dist/release/photocraft-studio-*.zip)
+          ZIP=$(ls dist/release/ai-photoshop-*.zip)
           gh release delete studio-latest --cleanup-tag --yes 2>/dev/null || true
           gh release create studio-latest "$ZIP" \
             --target "$GITHUB_SHA" \
             --prerelease \
             --title "Последняя сборка ($(date -u +%Y-%m-%d), ${GITHUB_SHA::7})" \
-            --notes "Готовая папка для сервера. Скачайте zip, распакуйте и положите папку photocraft на сервер. Инструкция: studio/README.ru.md"
+            --notes "Готовая папка для сервера. Скачайте zip, распакуйте и положите папку ai-photoshop на сервер (имя папки можно менять). Инструкция: studio/README.ru.md"

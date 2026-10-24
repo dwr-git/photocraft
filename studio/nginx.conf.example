@@ -1,43 +1,26 @@
-# PhotoCraft Studio — что нужно nginx.
+# AI-Photoshop — что нужно nginx.
 #
-# Обычно ваш сервер уже отдаёт статику и PHP из /app/src/<приложение>/, и этого
-# достаточно. Обязательны только две настройки ниже (размер запроса и время
-# ожидания модели), остальное — для скорости.
+# Папку можно назвать как угодно (ai-photoshop, editor, …) и переименовывать когда угодно:
+# все пути внутри неё относительные, а правила ниже не привязаны к имени папки.
+# Приложение целиком берётся из этой папки: интернет и сторонние сайты не нужны.
 #
-# Вставьте внутрь вашего server { ... } и поправьте путь /photocraft/, если папка
-# лежит под другим именем.
+# Вставьте эти блоки внутрь вашего server { ... }. Если раньше вы добавляли блок
+# location /photocraft/ { ... } — удалите его, он больше не нужен.
+#
+# Обычной раздачи статики (включая include mime.types; в блоке http — он есть в стандартном
+# nginx.conf) достаточно, чтобы редактор открылся. Две настройки ниже нужны помощнику.
 
-location /photocraft/ {
-    # 1. ОБЯЗАТЕЛЬНО: помощник отправляет снимок экрана — запрос бывает больше
-    #    стандартного 1 МБ nginx.
+# 1. ОБЯЗАТЕЛЬНО для помощника: он отправляет снимок экрана (больше стандартного 1 МБ),
+#    а модель думает дольше стандартных 60 секунд.
+location ~ /api/assistant\.php$ {
     client_max_body_size 20m;
+    fastcgi_read_timeout 200s;
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    fastcgi_pass php:9000;   # ← как в вашем общем блоке PHP
+}
 
-    # Приложение (wasm) приходит сжатыми кусками *.part-* — их можно кэшировать навсегда,
-    # в имени есть хэш. Страница, загрузчик и список кусков — проверять при каждом заходе.
-    location ~* \.part-[a-z]+$ {
-        add_header Cache-Control "public, max-age=31536000, immutable";
-    }
-    location ~* /photocraft/(index\.html|app/photocraft-web\.js|app/parts\.txt)$ {
-        add_header Cache-Control "no-cache";
-    }
-    # Панель помощника и её настройки (config.js правится на сервере).
-    location /photocraft/studio/ {
-        add_header Cache-Control "no-cache";
-    }
-
-    # Внутренние файлы помощника не нужны снаружи.
-    location ~ ^/photocraft/api/(settings|tools)\.php$ {
-        deny all;
-    }
-
-    # 2. ОБЯЗАТЕЛЬНО: модель думает дольше стандартных 60 секунд.
-    #    Если PHP у вас обрабатывается общим блоком location ~ \.php$, добавьте
-    #    fastcgi_read_timeout туда (или скопируйте ваш блок сюда, как ниже).
-    location ~ ^/photocraft/api/assistant\.php$ {
-        client_max_body_size 20m;
-        fastcgi_read_timeout 200s;
-        include fastcgi_params;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        fastcgi_pass php:9000;   # ← как в вашем общем блоке PHP
-    }
+# 2. Внутренние файлы помощника не нужны снаружи.
+location ~ /api/(settings|tools)\.php$ {
+    deny all;
 }

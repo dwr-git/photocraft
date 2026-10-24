@@ -1,4 +1,4 @@
-/* PhotoCraft Studio — помощник внутри редактора.
+/* AI-Photoshop — помощник внутри редактора.
  *
  * Панель в браузере разговаривает с моделью через api/assistant.php, а действия
  * выполняет в самом редакторе через мост window.__photocraftNative
@@ -16,7 +16,7 @@
     language: 'ru',            // язык интерфейса редактора; '' — не трогать
     defaultTheme: 'neuLight',  // тема при первом запуске
     maxSteps: 10,              // сколько шагов подряд помощник может сделать за один запрос
-    screenshotMax: 1280,       // длинная сторона снимка экрана для модели, px
+    screenshotMax: 1024,       // длинная сторона снимка экрана для модели, px
     openOnStart: false,
   }, window.STUDIO_CONFIG || {});
 
@@ -175,7 +175,7 @@
         c.width = Math.max(1, Math.round(img.width * k));
         c.height = Math.max(1, Math.round(img.height * k));
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        resolve(c.toDataURL('image/jpeg', 0.84).split(',')[1]);
+        resolve(c.toDataURL('image/jpeg', 0.72).split(',')[1]);
       };
       img.onerror = () => reject(new Error('не удалось прочитать снимок'));
       img.src = src;
@@ -634,24 +634,78 @@
 
   // ------------------------------------------------------------------ разговор с моделью
   function outgoing() {
-    // Картинки занимают много контекста: оставляем только две последние.
+    // Картинки тяжёлые и занимают много контекста: отправляем только последний снимок.
     const out = convo.slice(-60).map((m) => ({ ...m }));
     let images = 0;
     for (let i = out.length - 1; i >= 0; i--) {
       if (!out[i].images) continue;
-      if (images >= 2) delete out[i].images; else images += out[i].images.length;
+      if (images >= 1) delete out[i].images; else images += out[i].images.length;
     }
     return out;
   }
-  async function ask() {
-    const r = await fetch(CFG.api, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode, messages: outgoing() }),
-    });
+
+  // Запрос к серверу помощника. Если сервер не принимает запрос со снимком экрана (nginx по
+  // умолчанию берёт не больше 1 МБ и при большем просто обрывает соединение — браузер пишет
+  // «Failed to fetch»), запрос повторяется без снимка, и дальше снимки не отправляются.
+  const BODY_LIMIT = 900 * 1024;
+  let imagesBlocked = false;
+  const withoutImages = (payload) => ({ ...payload, messages: payload.messages.map((m) => { const { images, ...rest } = m; void images; return rest; }) });
+  const hasImages = (payload) => payload.messages.some((m) => m.images && m.images.length);
+  function tellImagesBlocked() {
+    if (imagesBlocked) return;
+    imagesBlocked = true;
+    msg('note', 'Сервер не принял запрос со снимком экрана, поэтому помощник отвечает без него. ' +
+      'Чтобы он видел экран, добавьте в nginx для api/assistant.php строку <code>client_max_body_size 20m;</code> (готовый блок — в nginx.conf.example).');
+  }
+  async function explainNoAnswer(seconds) {
+    try {
+      const r = await fetch(CFG.api, { credentials: 'same-origin', cache: 'no-store' });
+      if (r.ok) {
+        const when = seconds >= 1 ? ` через ${Math.round(seconds)} с` : ' сразу';
+        const why = seconds >= 45
+          ? 'Похоже, сервер не дождался модели: для api/assistant.php нужна строка fastcgi_read_timeout 200s; (и такой же таймаут у прокси перед сервером, если он есть).'
+          : 'Обычно так бывает, когда запрос больше, чем разрешает сервер (client_max_body_size 20m; для api/assistant.php), или его блокирует защита сервера.';
+        return `Сервер оборвал соединение${when} и ничего не ответил, хотя сам помощник доступен. ${why} Готовый блок — в nginx.conf.example.`;
+      }
+      return `Сервер помощника ответил «${r.status}». Проверьте, что PHP обрабатывает файлы в папке api/.`;
+    } catch {
+      return 'Нет связи с сервером помощника: страница не может достучаться до api/assistant.php. Проверьте подключение и обновите страницу.';
+    }
+  }
+  async function postApi(payload) {
+    const post = (p) => fetch(CFG.api, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+    if (imagesBlocked && hasImages(payload)) payload = withoutImages(payload);
+    if (hasImages(payload) && JSON.stringify(payload).length > BODY_LIMIT) payload = withoutImages(payload);
+    let r;
+    const t0 = performance.now();
+    const took = () => (performance.now() - t0) / 1000;
+    try {
+      r = await post(payload);
+    } catch (e) {
+      console.warn('AI-Photoshop: запрос к помощнику оборвался', e);
+      if (!hasImages(payload)) throw new Error(await explainNoAnswer(took()));
+      try { r = await post(withoutImages(payload)); } catch { throw new Error(await explainNoAnswer(took())); }
+      tellImagesBlocked();
+      return r;
+    }
+    if (r.status === 413 && hasImages(payload)) {
+      r = await post(withoutImages(payload));
+      tellImagesBlocked();
+    }
+    return r;
+  }
+  async function readAnswer(r) {
     let j;
-    try { j = await r.json(); } catch { throw new Error(`Сервер помощника ответил не JSON (HTTP ${r.status}). Проверьте, что PHP работает в папке api/.`); }
+    try { j = await r.json(); } catch {
+      if (r.status === 413) throw new Error('Сервер не принял такой большой запрос (413). Нужна строка client_max_body_size 20m; в nginx — см. nginx.conf.example.');
+      if (r.status === 502 || r.status === 504) throw new Error(`Сервер не дождался ответа модели (${r.status}). Нужна строка fastcgi_read_timeout 200s; в nginx — см. nginx.conf.example.`);
+      throw new Error(`Сервер помощника ответил не JSON (HTTP ${r.status}). Проверьте, что PHP работает в папке api/.`);
+    }
+    return j;
+  }
+  async function ask() {
+    const r = await postApi({ mode, messages: outgoing() });
+    const j = await readAnswer(r);
     if (!j.ok) {
       const e = new Error(j.error || 'Ошибка помощника');
       e.noVision = !!j.noVision;
@@ -800,11 +854,8 @@
       const shot = await screenshot();
       const content = `Изображение: ${doc.name}, ${doc.width}×${doc.height}\n[document.toneStats]\n${JSON.stringify(stats)}\n[Команды на выбор]\n` +
         JSON.stringify(pick.map((c) => ({ id: c.id, name: ruName(c), params: clip(String(c.params || ''), 700) })));
-      const r = await fetch(CFG.api, {
-        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'suggest', messages: [{ role: 'user', content, ...(shot && attachScreen ? { images: [shot] } : {}) }] }),
-      });
-      const j = await r.json();
+      const r = await postApi({ mode: 'suggest', messages: [{ role: 'user', content, ...(shot && attachScreen ? { images: [shot] } : {}) }] });
+      const j = await readAnswer(r);
       if (!j.ok) throw new Error(j.error || 'помощник не ответил');
       let list = [];
       try {

@@ -629,8 +629,8 @@ pub fn title_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
             let title = app
                 .session
                 .active()
-                .map(|d| format!("{}{}", if show_name { d.doc.name.as_str() } else { "PhotoCraft" }, if d.is_dirty() { "  •" } else { "" }))
-                .unwrap_or_else(|| "PhotoCraft".into());
+                .map(|d| format!("{}{}", if show_name { d.doc.name.as_str() } else { crate::native_menu::APP_NAME }, if d.is_dirty() { "  •" } else { "" }))
+                .unwrap_or_else(|| crate::native_menu::APP_NAME.into());
             // The menus and the far-end controls are laid out first; the title is centred in
             // whatever room is left between them (`free`, left to right: menus then controls, or
             // controls then menus in a right-to-left UI), shortened or dropped rather than drawn
@@ -758,9 +758,10 @@ pub fn system_title_bar(app: &PhotocraftApp) -> bool {
 /// drops out and only the app name (and the `*`) remains (#5037).
 pub fn window_title(app: &PhotocraftApp) -> String {
     if !app.session.prefs().interface.show_file_name_in_title {
-        return format!("{}PhotoCraft", if app.session.active().is_some_and(|d| d.is_dirty()) { "*" } else { "" });
+        return format!("{}{}", if app.session.active().is_some_and(|d| d.is_dirty()) { "*" } else { "" }, crate::native_menu::APP_NAME);
     }
-    app.session.active().map(|d| format!("{}{} \u{2014} PhotoCraft", if d.is_dirty() { "*" } else { "" }, d.doc.name)).unwrap_or_else(|| "PhotoCraft".into())
+    let app_name = crate::native_menu::APP_NAME;
+    app.session.active().map(|d| format!("{}{} \u{2014} {app_name}", if d.is_dirty() { "*" } else { "" }, d.doc.name)).unwrap_or_else(|| app_name.into())
 }
 
 /// Keep the OS window title (and the taskbar / Alt-Tab entry) on the active file. Sends
@@ -835,19 +836,19 @@ mod title_tests {
 
     #[test]
     fn window_title_with_no_document_is_the_app_name() {
-        assert_eq!(window_title(&app(true)), "PhotoCraft");
+        assert_eq!(window_title(&app(true)), "AI-Photoshop");
     }
 
     #[test]
     fn window_title_follows_the_active_file() {
         let mut app = app(true);
         open_named(&mut app, "foo.psd");
-        assert_eq!(window_title(&app), "foo.psd \u{2014} PhotoCraft");
+        assert_eq!(window_title(&app), "foo.psd \u{2014} AI-Photoshop");
         // Unsaved changes gain a `*` prefix, like the `•` in the app-drawn title.
         if let Some(st) = app.session.active_mut() {
             st.revision += 1;
         }
-        assert_eq!(window_title(&app), "*foo.psd \u{2014} PhotoCraft");
+        assert_eq!(window_title(&app), "*foo.psd \u{2014} AI-Photoshop");
     }
 
     #[test]
@@ -855,11 +856,11 @@ mod title_tests {
         let mut app = app(true);
         open_named(&mut app, "foo.psd");
         app.session.prefs.edit(|p| p.interface.show_file_name_in_title = false);
-        assert_eq!(window_title(&app), "PhotoCraft");
+        assert_eq!(window_title(&app), "AI-Photoshop");
         if let Some(st) = app.session.active_mut() {
             st.revision += 1;
         }
-        assert_eq!(window_title(&app), "*PhotoCraft");
+        assert_eq!(window_title(&app), "*AI-Photoshop");
     }
 
     #[test]
@@ -881,7 +882,7 @@ mod title_tests {
         app.session.prefs.edit(|p| p.interface.show_file_name_in_title = false);
         let hidden = texts(&mut app);
         assert!(!hidden.iter().any(|t| t.contains("foo.psd")), "file name hidden: {hidden:?}");
-        assert!(hidden.iter().any(|t| t.contains("PhotoCraft")), "app name kept: {hidden:?}");
+        assert!(hidden.iter().any(|t| t.contains("AI-Photoshop")), "app name kept: {hidden:?}");
     }
 
     #[test]
@@ -919,11 +920,11 @@ mod title_tests {
         let ctx = egui::Context::default();
         crate::PhotocraftApp::setup_context(&ctx, crate::theme::ThemeKind::ALL[0]);
         super::sync_window_title(&mut app, &ctx);
-        assert_eq!(app.last_window_title, "PhotoCraft");
+        assert_eq!(app.last_window_title, "AI-Photoshop");
         let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
         out.textures_delta.clear();
         let cmds = out.viewport_output.remove(&egui::ViewportId::ROOT).map(|v| v.commands).unwrap_or_default();
-        assert!(cmds.iter().any(|c| matches!(c, egui::ViewportCommand::Title(t) if t == "PhotoCraft")), "{cmds:?}");
+        assert!(cmds.iter().any(|c| matches!(c, egui::ViewportCommand::Title(t) if t == "AI-Photoshop")), "{cmds:?}");
         // Same document state again: the cached title stops a repeat command.
         super::sync_window_title(&mut app, &ctx);
         let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
@@ -932,7 +933,7 @@ mod title_tests {
         assert!(!cmds.iter().any(|c| matches!(c, egui::ViewportCommand::Title(_))), "repeat Title: {cmds:?}");
         open_named(&mut app, "foo.psd");
         super::sync_window_title(&mut app, &ctx);
-        assert_eq!(app.last_window_title, "foo.psd \u{2014} PhotoCraft");
+        assert_eq!(app.last_window_title, "foo.psd \u{2014} AI-Photoshop");
     }
 }
 

@@ -10,7 +10,8 @@ publish = false
 workspace = true
 
 [[bin]]
-name = "photocraft-web-boot"
+# The shipped file names (ai-photoshop-<hash>.js / _bg.wasm) come from this name.
+name = "ai-photoshop"
 path = "src/main.rs"
 
 [dependencies]
@@ -21,4 +22,4 @@ flate2 = { workspace = true }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "Node", "Request", "RequestInit", "RequestCache", "Response", "ResponseInit", "Headers", "ReadableStream", "ReadableStreamDefaultReader", "WritableStream", "WritableStreamDefaultWriter", "TransformStream", "TransformStreamDefaultController", "Transformer", "StreamPipeOptions", "ReadableWritablePair", "console"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "Node", "Request", "RequestInit", "RequestCache", "Response", "Headers", "Blob", "ReadableStream", "WritableStream", "ReadableWritablePair", "console"] }

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds PhotoCraft Studio: the browser app plus the assistant panel and its PHP, as one folder
-# ready for the server, zipped:  $DIST/photocraft-studio-<version>.zip  →  photocraft/
+# Builds AI-Photoshop: the browser app plus the assistant panel and its PHP, as one folder
+# ready for the server, zipped:  $DIST/ai-photoshop-<version>.zip  →  ai-photoshop/
+# The folder works under any name: every path in it is relative.
 #
 # Usage: studio/build/package.sh [--skip-build]
 #   --skip-build  reuse the last trunk build (dist/web, dist/web-boot)
@@ -20,12 +21,14 @@ SITE="$CARGO_TARGET_DIR/web-package/photocraft-web-$VERSION"
 OUT="$CARGO_TARGET_DIR/studio-package"
 rm -rf "$OUT"
 mkdir -p "$OUT"
-cp -R "$SITE" "$OUT/photocraft"
-APP="$OUT/photocraft"
+cp -R "$SITE" "$OUT/ai-photoshop"
+APP="$OUT/ai-photoshop"
+# Upstream hosting notes (they describe the original project); this folder has its own README.
+rm -f "$APP/HOSTING.md"
 
 # The panel: studio/ next to index.html.
 mkdir -p "$APP/studio"
-cp "$ROOT/studio/web/studio.js" "$ROOT/studio/web/studio.css" "$ROOT/studio/web/config.js" "$APP/studio/"
+cp "$ROOT/studio/web/studio.js" "$ROOT/studio/web/studio.css" "$ROOT/studio/web/config.js" "$ROOT/studio/web/loader.js" "$APP/studio/"
 cp "$ROOT/studio/web/.htaccess" "$APP/studio/"
 cp "$ROOT/studio/web/favicon.png" "$APP/favicon.png"
 python3 "$ROOT/studio/build/make_labels.py" "$APP/studio/ru-labels.json"
@@ -47,12 +50,17 @@ STAMP="${PHOTOCRAFT_BUILD_SHA:0:8}"
 sed -i.bak \
   -e "s#href=\"studio/studio.css\"#href=\"studio/studio.css?v=$STAMP\"#" \
   -e "s#src=\"studio/studio.js\"#src=\"studio/studio.js?v=$STAMP\"#" \
+  -e "s#src=\"studio/loader.js\"#src=\"studio/loader.js?v=$STAMP\"#" \
   "$APP/index.html"
 rm -f "$APP/index.html.bak"
 grep -q "studio/studio.js?v=$STAMP" "$APP/index.html" || { echo "error: the page does not load the assistant panel" >&2; exit 1; }
+grep -q "studio/loader.js?v=$STAMP" "$APP/index.html" || { echo "error: the page does not load the start-up check" >&2; exit 1; }
+# Nothing in the folder may load from another site: the app must work with no internet.
+if grep -rIlE "(src|href)=\"(https?:)?//" "$APP" --include=*.html >/dev/null; then echo "error: a page loads something from another site" >&2; exit 1; fi
+grep -q 'data-app-bytes="[1-9]' "$APP/index.html" || { echo "error: the page does not know the download size" >&2; exit 1; }
 
-ZIP="$DIST/photocraft-studio-$VERSION.zip"
+ZIP="$DIST/ai-photoshop-$VERSION.zip"
 rm -f "$ZIP"
-(cd "$OUT" && zip -qr9 "$ZIP" photocraft)
+(cd "$OUT" && zip -qr9 "$ZIP" ai-photoshop)
 echo "wrote $ZIP"
 ls -lh "$ZIP"

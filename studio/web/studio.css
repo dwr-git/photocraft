@@ -1,4 +1,4 @@
-/* PhotoCraft Studio — панель помощника.
+/* AI-Photoshop — панель помощника.
    Неоморфизм: одна поверхность, всё «выдавлено» из неё мягкими парными тенями
    (светлая — сверху слева, тёмная — снизу справа) или «вдавлено» в неё.
    Цвета повторяют темы NeuLight / NeuDark редактора (crates/ui-egui/src/theme.rs). */
@@ -93,7 +93,7 @@ html.studio-brand, html.studio-brand body, #studio-root[data-theme="brand"] .st-
   box-shadow: rgba(102, 126, 234, 0.35) 0 4px 16px;
 }
 /* резко чёрные блоки с тенью: сплошная заливка #000, без примеси белого */
-#studio-root[data-theme="brand"] :is(.st-msg.bot, .st-msg.err, .st-confirm, .st-fab, .st-typing, .st-logo, .st-hints, .st-bar-answer) {
+#studio-root[data-theme="brand"] :is(.st-msg.bot, .st-msg.err, .st-msg.note, .st-confirm, .st-fab, .st-typing, .st-logo, .st-hints, .st-bar-answer) {
   background: #000;
   border: 0;
   box-shadow: rgb(0 0 0) 0px 8px 32px;
@@ -230,6 +230,8 @@ body.studio-open #photocraft_canvas { width: calc(100% - var(--st-w)) !important
 .st-bar-text .st-path { color: var(--st-accent-text); font-weight: 600; }
 .st-bar-text code { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 5px; border-radius: 6px; background: var(--st-field); }
 .st-msg.err { align-self: stretch; max-width: none; color: var(--st-danger); background: var(--st-field); box-shadow: inset 2px 2px 6px var(--st-sh-dark), inset -2px -2px 6px var(--st-sh-light); }
+.st-msg.note { align-self: stretch; max-width: none; font-size: 12.5px; color: var(--st-text-dim, var(--st-text)); background: var(--st-field); box-shadow: inset 2px 2px 6px var(--st-sh-dark), inset -2px -2px 6px var(--st-sh-light); }
+.st-msg.note code { font-size: 12px; }
 .st-msg .st-shot { display: block; margin-top: 8px; width: 100%; border-radius: 10px; opacity: .9; }
 
 /* карточки действий помощника */
