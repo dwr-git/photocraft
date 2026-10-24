@@ -222,12 +222,45 @@ curl_setopt_array($ch, [
     CURLOPT_TIMEOUT => max(30, $STUDIO['timeout']),
 ]);
 $started = microtime(true);
-$body = curl_exec($ch);
+// Пока модель думает, раз в 10 секунд отправляем в ответ пробел. Пробелы перед JSON
+// ничего не ломают, а соединение не выглядит «зависшим»: роутеры, VPN и прокси между
+// браузером и сервером часто рвут молчащие соединения, и браузер тогда пишет «Failed to fetch».
+header('X-Accel-Buffering: no');
+@ini_set('zlib.output_compression', '0');
+while (ob_get_level() > 0) {
+    @ob_end_flush();
+}
+$mh = curl_multi_init();
+curl_multi_add_handle($mh, $ch);
+$lastBeat = microtime(true);
+do {
+    $status = curl_multi_exec($mh, $running);
+    if ($running) {
+        curl_multi_select($mh, 1.0);
+    }
+    if (microtime(true) - $lastBeat >= 10) {
+        echo ' ';
+        flush();
+        $lastBeat = microtime(true);
+    }
+} while ($running && $status === CURLM_OK);
+$body = curl_multi_getcontent($ch);
 $curlError = curl_error($ch);
+if ($curlError === '') {
+    $info = curl_multi_info_read($mh);
+    if (is_array($info) && ($info['result'] ?? CURLE_OK) !== CURLE_OK) {
+        $curlError = curl_strerror((int)$info['result']);
+    }
+}
 $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_multi_remove_handle($mh, $ch);
+curl_multi_close($mh);
 curl_close($ch);
+if ($http === 0 && $curlError === '') {
+    $curlError = 'нет ответа от модели за ' . round(microtime(true) - $started) . ' с';
+}
 
-if ($body === false || $curlError !== '') {
+if ($body === null || $body === false || $curlError !== '') {
     studio_fail(502, 'Модель недоступна: ' . $curlError);
 }
 $res = json_decode((string)$body, true);

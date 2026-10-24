@@ -1106,7 +1106,14 @@
     try {
       const r = await fetch(CFG.api, { credentials: 'same-origin' });
       const j = await r.json();
-      if (j.ok) $('sub').textContent = 'Модель: ' + j.model;
+      if (j.ok) {
+        $('sub').textContent = 'Модель: ' + j.model;
+        fetch('studio/version.json', { cache: 'no-store' }).then((v) => (v.ok ? v.json() : null)).then((v) => {
+          if (!v || !v.build) return;
+          const d = String(v.date || '').split('-').reverse().join('.');
+          $('sub').textContent = 'Модель: ' + j.model + ' · сборка ' + v.build + (d ? ' от ' + d : '');
+        }).catch(() => {});
+      }
       else $('sub').textContent = j.login ? 'Нужно войти в систему' : (j.error || 'Нет связи с помощником');
     } catch {
       $('sub').textContent = 'Нет связи с сервером помощника';

@@ -59,7 +59,12 @@ grep -q "studio/loader.js?v=$STAMP" "$APP/index.html" || { echo "error: the page
 if grep -rIlE "(src|href)=\"(https?:)?//" "$APP" --include=*.html >/dev/null; then echo "error: a page loads something from another site" >&2; exit 1; fi
 grep -q 'data-app-bytes="[1-9]' "$APP/index.html" || { echo "error: the page does not know the download size" >&2; exit 1; }
 
-ZIP="$DIST/ai-photoshop-$VERSION.zip"
+# Номер сборки (GitHub Actions передаёт AI_PHOTOSHOP_BUILD) и дата — в имени архива и внутри папки,
+# чтобы было видно, какая версия скачана и какая стоит на сервере (панель помощника пишет её в шапке).
+BUILD="${AI_PHOTOSHOP_BUILD:-local}"
+BUILD_DATE="$(TZ=Europe/Minsk date +%Y-%m-%d)"
+printf '{"build":"%s","date":"%s","commit":"%s"}\n' "$BUILD" "$BUILD_DATE" "$STAMP" >"$APP/studio/version.json"
+ZIP="$DIST/ai-photoshop-build-$BUILD-$BUILD_DATE.zip"
 rm -f "$ZIP"
 (cd "$OUT" && zip -qr9 "$ZIP" ai-photoshop)
 echo "wrote $ZIP"

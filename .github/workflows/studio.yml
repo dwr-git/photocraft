@@ -1,8 +1,9 @@
-# Сборка PhotoCraft Studio: готовая папка для сервера (zip).
+# Сборка AI-Photoshop: готовая папка для сервера (zip).
 #
 # Запускается на каждое изменение ветки main и вручную (Actions → «Сборка» → Run workflow).
 # Результат:
-#   - Releases → «Последняя сборка» (studio-latest): ai-photoshop-<версия>.zip
+#   - Releases → «Сборка N — дата» (отдельный выпуск на каждую сборку, свежая отмечена Latest):
+#     ai-photoshop-build-N-ГГГГ-ММ-ДД.zip; что нового — из studio/CHANGES.ru.md
 #   - Actions → запуск → Artifacts: тот же zip
 # Rust, trunk и всё остальное ставятся только здесь, на машине GitHub. На ваш сервер
 # попадают готовые файлы: index.html, js, сжатый wasm, PHP помощника.
@@ -22,11 +23,12 @@ concurrency:
 
 jobs:
   build:
-    name: PhotoCraft Studio (браузер)
+    name: AI-Photoshop (браузер)
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
       TRUNK_VERSION: 0.21.14
+      AI_PHOTOSHOP_BUILD: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
 
@@ -64,14 +66,26 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-      - name: Выложить в Releases (последняя сборка)
+      - name: Выложить в Releases (отдельная сборка с номером)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ZIP=$(ls dist/release/ai-photoshop-*.zip)
+          ZIP=$(ls dist/release/ai-photoshop-build-*.zip)
+          DATE=$(TZ=Europe/Minsk date +%d.%m.%Y)
+          # Что нового: верхний раздел studio/CHANGES.ru.md (от первого «## » до следующего).
+          awk '/^## /{n++} n==1' studio/CHANGES.ru.md > notes.md
+          {
+            echo
+            echo "---"
+            echo "Скачайте zip ниже, распакуйте и положите папку ai-photoshop на сервер вместо старой (имя папки можно менять)."
+            echo "Номер установленной сборки виден в шапке панели помощника. Инструкция: studio/README.ru.md"
+          } >> notes.md
+          # Старый «плавающий» выпуск больше не нужен: теперь у каждой сборки свой.
           gh release delete studio-latest --cleanup-tag --yes 2>/dev/null || true
-          gh release create studio-latest "$ZIP" \
+          # Повторный запуск той же сборки заменяет её выпуск.
+          gh release delete "build-${AI_PHOTOSHOP_BUILD}" --cleanup-tag --yes 2>/dev/null || true
+          gh release create "build-${AI_PHOTOSHOP_BUILD}" "$ZIP" \
             --target "$GITHUB_SHA" \
-            --prerelease \
-            --title "Последняя сборка ($(date -u +%Y-%m-%d), ${GITHUB_SHA::7})" \
-            --notes "Готовая папка для сервера. Скачайте zip, распакуйте и положите папку ai-photoshop на сервер (имя папки можно менять). Инструкция: studio/README.ru.md"
+            --latest \
+            --title "Сборка ${AI_PHOTOSHOP_BUILD} — ${DATE}" \
+            --notes-file notes.md
