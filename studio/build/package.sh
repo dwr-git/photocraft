@@ -82,6 +82,20 @@ header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 readfile(__DIR__ . '/index.html');
 PHP
+# Каждый текстовый файл с постоянным именем (страница, index.php, скрипты и стили панели, PHP
+# помощника, файл запуска с постоянным именем) получает в конце строку с номером сборки и набивкой
+# той же разной длины: иначе программа заливки, которая пропускает файлы того же размера, оставит
+# на сервере старую страницу, и та запустит старый загрузчик. Файлы с отпечатком в имени не трогаем
+# (их имя и так новое, а у части из них в странице записана контрольная сумма).
+pad_file() {
+  case "$1" in
+    *.html) printf '\n<!-- build %s %s -->\n' "$BUILD" "$PAD" >>"$1" ;;
+    *.js | *.css) printf '\n/* build %s %s */\n' "$BUILD" "$PAD" >>"$1" ;;
+    *.php) tail -c 3 "$1" | grep -q '?>' || printf '\n// build %s %s\n' "$BUILD" "$PAD" >>"$1" ;;
+  esac
+}
+while IFS= read -r f; do pad_file "$f"; done < <(find "$APP" -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.php' \) | grep -vE '[-_][0-9a-f]{16}[-_.][^/]*$')
+grep -q "<!-- build $BUILD " "$APP/index.html" || { echo "error: the page has no build padding" >&2; exit 1; }
 ZIP="$DIST/ai-photoshop-build-$BUILD-$BUILD_DATE.zip"
 rm -f "$ZIP"
 (cd "$OUT" && zip -qr9 "$ZIP" ai-photoshop)

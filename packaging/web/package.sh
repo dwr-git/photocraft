@@ -60,7 +60,7 @@ WORK="$CARGO_TARGET_DIR/web-package"
 rm -rf "$WORK"
 mkdir -p "$WORK/$NAME/app"
 cp -R "$BOOT/." "$WORK/$NAME/"
-# The app's glue by its content hash, named in parts.txt (`loader …`): a fixed name could come
+# The app's glue by its content hash, named in parts.txt (`# loader …`): a fixed name could come
 # from the browser's cache, or stay behind on the server, and an old glue can't start a new wasm.
 # The fixed name stays too, for a page from before (its boot module imports that).
 GLUE_NAME="$PART_STEM.js"
@@ -72,7 +72,7 @@ cp "$GLUE" "$WORK/$NAME/app/ai-photoshop.js"
 gzip -9 -n -c "$WASM" | (cd "$WORK/$NAME/app" && split -b "$PART_BYTES" - "$PART_STEM.part-")
 {
   echo "photocraft-parts 1"
-  echo "loader $GLUE_NAME"
+  echo "# loader $GLUE_NAME"
   for part in "$WORK/$NAME/app/$PART_STEM".part-*; do basename "$part"; done
 } >"$WORK/$NAME/app/parts.txt"
 size() { wc -c <"$1" | tr -d ' '; }

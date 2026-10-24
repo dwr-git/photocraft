@@ -74,6 +74,30 @@ pub fn pretty(s: &str) -> String {
         .join(if mac { "" } else { "+" })
 }
 
+/// Commands whose main key the browser keeps for itself outside full screen (Ctrl+T new tab,
+/// Ctrl+N new window, Ctrl+Shift+N private window, Ctrl+Shift+T reopen tab): in the web app
+/// their menu rows also show the key that reaches the page
+/// ([`photocraft_engine::prefs::ALTERNATE_SHORTCUTS`]), or nobody would find it.
+pub const BROWSER_TAKEN: &[&str] = &["edit.freeTransform", "edit.transform.again", "file.new", "layer.new.layer"];
+
+/// The key text a menu row shows for command `id` bound to `sc`: `pretty(sc)`, and in the web
+/// app for [`BROWSER_TAKEN`] commands also the browser-safe key (`Ctrl+T / F9`).
+pub fn menu_shortcut_text(id: &str, sc: &str) -> String {
+    let main = pretty(sc);
+    if !cfg!(target_arch = "wasm32") || !BROWSER_TAKEN.contains(&id) {
+        return main;
+    }
+    with_browser_key(&main, photocraft_engine::prefs::default_alternates(id).next())
+}
+
+/// `main / alt` in the platform notation, or `main` without an alternate.
+pub fn with_browser_key(main: &str, alt: Option<&str>) -> String {
+    match alt {
+        Some(a) => format!("{main} / {}", pretty(a)),
+        None => main.to_string(),
+    }
+}
+
 /// The command's effective shortcut in the platform's notation (`Ctrl+N`), or `None` when
 /// the command has no binding (the user removed it in Edit › Keyboard Shortcuts).
 pub fn shortcut_label(app: &PhotocraftApp, command: &str) -> Option<String> {
@@ -1003,6 +1027,21 @@ mod tests {
         assert_eq!(pretty("Shift+Alt"), if mac { "⇧⌥" } else { "Shift+Alt" });
         assert_eq!(pretty("Enter"), if mac { "↩" } else { "Enter" });
         assert_eq!(pretty("Cmd+Enter"), if mac { "⌘↩" } else { "Ctrl+Enter" });
+    }
+
+    #[test]
+    fn menu_rows_name_the_browser_safe_key_only_in_the_web_app() {
+        let mac = cfg!(target_os = "macos");
+        assert_eq!(with_browser_key(&pretty("Cmd+T"), Some("F9")), if mac { "⌘T / F9" } else { "Ctrl+T / F9" });
+        assert_eq!(with_browser_key("Ctrl+T", None), "Ctrl+T");
+        // Natively the browser takes nothing: the row shows Photoshop's key alone.
+        assert_eq!(menu_shortcut_text("edit.freeTransform", "Cmd+T"), pretty("Cmd+T"));
+        assert_eq!(menu_shortcut_text("edit.copy", "Cmd+C"), pretty("Cmd+C"));
+        // Every command listed has a browser-safe key in the web build's defaults.
+        let src = include_str!("../../engine/src/prefs.rs");
+        for id in BROWSER_TAKEN {
+            assert!(src.contains(&format!("(\"{id}\", \"")), "{id} has no alternate key");
+        }
     }
 
     #[test]

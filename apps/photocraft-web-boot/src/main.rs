@@ -35,7 +35,8 @@ fn parts(list: &str) -> Option<Vec<String>> {
     }
     // Lines starting with `#` are notes (packaging writes the build number there, so the file's
     // size changes with every build and upload tools that skip same-size files still replace it).
-    // A `loader <file>` line names the app's own loader (see [`loader`]).
+    // A `# loader <file>` note names the app's own loader (see [`loader`]); lists from one
+    // build wrote it without the `#`.
     let parts: Vec<String> = lines.filter(|l| !l.starts_with('#') && !l.starts_with(LOADER)).map(str::to_owned).collect();
     (!parts.is_empty() && parts.iter().all(|p| plain(p))).then_some(parts)
 }
@@ -50,6 +51,12 @@ fn plain(p: &str) -> bool {
 #[cfg(any(target_arch = "wasm32", test))]
 const LOADER: &str = "loader ";
 
+/// How `parts.txt` names the loader since: as a note, which boot modules from before the
+/// loader line skip. The page left on a server by an upload that skips files of the same size
+/// starts such an older module, and it must still find its parts.
+#[cfg(any(target_arch = "wasm32", test))]
+const LOADER_NOTE: &str = "# loader ";
+
 /// The app's loader that goes with these parts. Packaging names it after the build's content hash
 /// and lists it in `parts.txt`: a fixed name could come from the browser's cache, or be left over
 /// on the server by an upload that skips files of the same size, and an old loader can't start a
@@ -59,7 +66,7 @@ const LOADER: &str = "loader ";
 fn loader(list: &str) -> String {
     list.lines()
         .map(str::trim)
-        .find_map(|l| l.strip_prefix(LOADER))
+        .find_map(|l| l.strip_prefix(LOADER_NOTE).or_else(|| l.strip_prefix(LOADER)))
         .map(str::trim)
         .filter(|f| plain(f) && f.ends_with(".js"))
         .unwrap_or("ai-photoshop.js")
@@ -394,6 +401,10 @@ mod tests {
         assert_eq!(loader(&format!("{MARKER}\na.part-aa\n")), "ai-photoshop.js", "an older list");
         assert_eq!(loader(&format!("{MARKER}\nloader ../evil.js\na.part-aa\n")), "ai-photoshop.js", "only a file next to the list");
         assert_eq!(loader(&format!("{MARKER}\nloader https://x/y.js\na.part-aa\n")), "ai-photoshop.js");
+        // The note form: older boot modules skip `#` lines, so they still find the parts.
+        let noted = format!("{MARKER}\n# loader ai-photoshop-0123abcd.js\na.part-aa\n");
+        assert_eq!(loader(&noted), "ai-photoshop-0123abcd.js");
+        assert_eq!(parts(&noted), Some(vec!["a.part-aa".to_string()]));
     }
 
     #[test]
