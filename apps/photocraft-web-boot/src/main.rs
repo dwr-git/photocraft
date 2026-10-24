@@ -35,9 +35,35 @@ fn parts(list: &str) -> Option<Vec<String>> {
     }
     // Lines starting with `#` are notes (packaging writes the build number there, so the file's
     // size changes with every build and upload tools that skip same-size files still replace it).
-    let parts: Vec<String> = lines.filter(|l| !l.starts_with('#')).map(str::to_owned).collect();
-    let plain = |p: &String| !p.starts_with('.') && !p.contains(['/', '\\', '?', '#', ':', '%']);
-    (!parts.is_empty() && parts.iter().all(plain)).then_some(parts)
+    // A `loader <file>` line names the app's own loader (see [`loader`]).
+    let parts: Vec<String> = lines.filter(|l| !l.starts_with('#') && !l.starts_with(LOADER)).map(str::to_owned).collect();
+    (!parts.is_empty() && parts.iter().all(|p| plain(p))).then_some(parts)
+}
+
+/// A file name next to `parts.txt`: nothing that could point elsewhere.
+#[cfg(any(target_arch = "wasm32", test))]
+fn plain(p: &str) -> bool {
+    !p.is_empty() && !p.starts_with('.') && !p.contains(['/', '\\', '?', '#', ':', '%', ' '])
+}
+
+/// How `parts.txt` names the app's `wasm-bindgen` loader: `loader ai-photoshop-<hash>.js`.
+#[cfg(any(target_arch = "wasm32", test))]
+const LOADER: &str = "loader ";
+
+/// The app's loader that goes with these parts. Packaging names it after the build's content hash
+/// and lists it in `parts.txt`: a fixed name could come from the browser's cache, or be left over
+/// on the server by an upload that skips files of the same size, and an old loader can't start a
+/// new WebAssembly ("…func_elem_… is not a function"). A list without the line (an older build)
+/// gives the fixed name.
+#[cfg(any(target_arch = "wasm32", test))]
+fn loader(list: &str) -> String {
+    list.lines()
+        .map(str::trim)
+        .find_map(|l| l.strip_prefix(LOADER))
+        .map(str::trim)
+        .filter(|f| plain(f) && f.ends_with(".js"))
+        .unwrap_or("ai-photoshop.js")
+        .to_owned()
 }
 
 /// What the joined parts hold, told by their first bytes.
@@ -106,13 +132,12 @@ mod boot {
     /// Seconds to wait before each further try; one more than this many tries are made.
     const RETRY_AFTER: [u32; 2] = [1, 3];
 
-    // The app's `wasm-bindgen` loader. Its default export instantiates the module it is given and
-    // runs the app's `main`. The path is fixed at compile time, so packaging gives the file this
-    // name (Trunk's own name for it carries a content hash).
-    #[wasm_bindgen(raw_module = "./app/ai-photoshop.js")]
-    extern "C" {
-        #[wasm_bindgen(js_name = default, catch)]
-        async fn start_app(module: JsValue) -> Result<JsValue, JsValue>;
+    /// Import the app's `wasm-bindgen` loader at `url` (a module; `import()` takes it whatever its
+    /// name). Its default export instantiates the module it is given and runs the app's `main`.
+    async fn import(url: &str) -> Result<JsValue, JsValue> {
+        let import = js_sys::Function::new_with_args("u", "return import(u)");
+        let promise: js_sys::Promise = import.call1(&JsValue::NULL, &JsValue::from_str(url))?.dyn_into()?;
+        JsFuture::from(promise).await
     }
 
     // The browser's own inflater. `web-sys` has it only behind its unstable-API flag, which would
@@ -193,12 +218,20 @@ mod boot {
     }
 
     async fn run(fresh: bool) -> Result<(), JsValue> {
-        let list = JsFuture::from(fetch(PARTS, fresh).await?.text()?).await?.as_string().unwrap_or_default();
+        // The list itself always from the server: it names this build's parts and loader, which
+        // are cached by their content-hashed names.
+        let list = JsFuture::from(fetch(PARTS, true).await?.text()?).await?.as_string().unwrap_or_default();
         let parts = super::parts(&list).ok_or_else(|| JsValue::from_str("app/parts.txt is not a parts list"))?;
         let wasm = unpack(download(&parts, fresh).await?).await?;
+        // The loader by its full address (a relative one would resolve against this module's).
+        let base = window()?.document().ok_or_else(|| JsValue::from_str("no document"))?.base_uri()?.unwrap_or_default();
+        let url = web_sys::Url::new_with_base(&format!("./app/{}", super::loader(&list)), &base)?.href();
+        let app = import(&url).await?;
+        let start: js_sys::Function = js_sys::Reflect::get(&app, &JsValue::from_str("default"))?.dyn_into()?;
         let arg = js_sys::Object::new();
         js_sys::Reflect::set(&arg, &JsValue::from_str("module_or_path"), &wasm)?;
-        start_app(arg.into()).await.map(|_| ())
+        let started: js_sys::Promise = start.call1(&JsValue::NULL, &arg)?.dyn_into()?;
+        JsFuture::from(started).await.map(|_| ())
     }
 
     async fn sleep(seconds: u32) {
@@ -259,7 +292,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{HEAD, Inflater, MARKER, Payload, parts, payload};
+    use super::{HEAD, Inflater, MARKER, Payload, loader, parts, payload};
 
     fn gzip(bytes: &[u8]) -> Vec<u8> {
         let mut z = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
@@ -353,6 +386,16 @@ mod tests {
 
     /// Part names are joined onto `./app/`, so one that could leave that folder, or name another
     /// origin, refuses the whole list.
+    #[test]
+    fn the_parts_list_names_the_loader() {
+        let list = format!("{MARKER}\nloader ai-photoshop-0123abcd.js\na.part-aa\n# build 5\n");
+        assert_eq!(parts(&list), Some(vec!["a.part-aa".to_string()]));
+        assert_eq!(loader(&list), "ai-photoshop-0123abcd.js");
+        assert_eq!(loader(&format!("{MARKER}\na.part-aa\n")), "ai-photoshop.js", "an older list");
+        assert_eq!(loader(&format!("{MARKER}\nloader ../evil.js\na.part-aa\n")), "ai-photoshop.js", "only a file next to the list");
+        assert_eq!(loader(&format!("{MARKER}\nloader https://x/y.js\na.part-aa\n")), "ai-photoshop.js");
+    }
+
     #[test]
     fn notes_in_the_parts_list_are_skipped() {
         let list = format!("{MARKER}\n# build 21, 2026-10-24 ########\na.part-aa\nb.part-ab\n");

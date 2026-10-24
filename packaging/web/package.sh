@@ -60,7 +60,11 @@ WORK="$CARGO_TARGET_DIR/web-package"
 rm -rf "$WORK"
 mkdir -p "$WORK/$NAME/app"
 cp -R "$BOOT/." "$WORK/$NAME/"
-# The boot module imports the app's glue by this name (it can't know Trunk's content hash).
+# The app's glue by its content hash, named in parts.txt (`loader …`): a fixed name could come
+# from the browser's cache, or stay behind on the server, and an old glue can't start a new wasm.
+# The fixed name stays too, for a page from before (its boot module imports that).
+GLUE_NAME="$PART_STEM.js"
+cp "$GLUE" "$WORK/$NAME/app/$GLUE_NAME"
 cp "$GLUE" "$WORK/$NAME/app/ai-photoshop.js"
 # The parts keep the content hash, so they can be cached forever. Their extension is one no
 # server knows: a server that recognised gzip might decode it or label it, and the page inflates
@@ -68,6 +72,7 @@ cp "$GLUE" "$WORK/$NAME/app/ai-photoshop.js"
 gzip -9 -n -c "$WASM" | (cd "$WORK/$NAME/app" && split -b "$PART_BYTES" - "$PART_STEM.part-")
 {
   echo "photocraft-parts 1"
+  echo "loader $GLUE_NAME"
   for part in "$WORK/$NAME/app/$PART_STEM".part-*; do basename "$part"; done
 } >"$WORK/$NAME/app/parts.txt"
 size() { wc -c <"$1" | tr -d ' '; }
@@ -75,7 +80,7 @@ wasm_bytes=$(size "$WASM")
 gzip_bytes=$(cat "$WORK/$NAME/app/$PART_STEM".part-* | wc -c | tr -d ' ')
 # The page shows download progress against this total (studio/web/loader.js).
 sed -i.bak "s/data-app-bytes=\"0\"/data-app-bytes=\"$gzip_bytes\"/" "$WORK/$NAME/index.html" && rm -f "$WORK/$NAME/index.html.bak"
-part_count=$(($(wc -l <"$WORK/$NAME/app/parts.txt") - 1))
+part_count=$(($(wc -l <"$WORK/$NAME/app/parts.txt") - 2))
 echo "$(basename "$WASM"): $wasm_bytes bytes ($((wasm_bytes / 1048576)) MiB), shipped as $gzip_bytes bytes of gzip in $part_count part(s) of up to $PART_BYTES"
 # Sample server configs (MIME type, caching, compression); harmless where unused.
 cp "$HERE/_headers" "$HERE/.htaccess" "$WORK/$NAME/"
