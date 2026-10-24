@@ -764,7 +764,8 @@
         typing(false);
         const m = j.message || {};
         let calls = Array.isArray(m.tool_calls) ? m.tool_calls : [];
-        let content = (m.content || '').replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+        let content = (m.content || '').replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '').replace(/<think>[\s\S]*?<\/think>/g, '')
+          .replace(/<?function=[\w.-]+>[\s\S]*?(<\/function>|$)/g, '').replace(/<\/?tool_call>/g, '').trim();
         if (!calls.length) {
           calls = inlineCalls(content);
           if (calls.length) content = content.replace(/\{[\s\S]*\}/, '').trim();
@@ -1162,6 +1163,10 @@
           if (!v || !v.build) return;
           const d = String(v.date || '').split('-').reverse().join('.');
           $('sub').textContent = 'Модель: ' + j.model + ' · сборка ' + v.build + (d ? ' от ' + d : '');
+          const pageBuild = document.documentElement.dataset.build;
+          if (pageBuild && pageBuild !== String(v.build)) {
+            msg('note', `Открыта старая копия страницы из кэша браузера (сборка ${esc(pageBuild)}), а на сервере уже сборка ${esc(String(v.build))}. Нажмите <b>Ctrl+F5</b>, чтобы загрузить новую.`);
+          }
         }).catch(() => {});
       }
       else $('sub').textContent = j.login ? 'Нужно войти в систему' : (j.error || 'Нет связи с помощником');

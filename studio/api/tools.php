@@ -320,11 +320,13 @@ function studio_text_tool_calls(string $content): array
         $j = json_decode($raw, true);
         return ($j !== null || $raw === 'null') ? $j : $raw;
     };
-    // Qwen XML: с обёрткой <tool_call> или без неё.
-    if (preg_match_all('~(?:<tool_call>\s*)?<function=([A-Za-z0-9_.\-]+)>(.*?)</function>(?:\s*</tool_call>)?~s', $content, $m, PREG_SET_ORDER)) {
+    // Qwen XML: с обёрткой <tool_call> или без неё. Прокси с vLLM иногда «съедает» начало
+    // вызова («<tool_call>\n<»), и приходит «function=run_command>…» — это тоже понимаем,
+    // как и вызов без закрывающих тегов в конце ответа.
+    if (preg_match_all('~(?:<tool_call>\s*)?<?function=([A-Za-z0-9_.\-]+)>(.*?)(?:</function>(?:\s*</tool_call>)?|(?=<?function=[A-Za-z0-9_.\-]+>)|\z)~s', $content, $m, PREG_SET_ORDER)) {
         foreach ($m as $one) {
             $args = [];
-            if (preg_match_all('~<parameter=([A-Za-z0-9_.\-]+)>(.*?)</parameter>~s', $one[2], $pm, PREG_SET_ORDER)) {
+            if (preg_match_all('~<?parameter=([A-Za-z0-9_.\-]+)>(.*?)(?:</parameter>|(?=<?parameter=[A-Za-z0-9_.\-]+>)|(?=</function>)|\z)~s', $one[2], $pm, PREG_SET_ORDER)) {
                 foreach ($pm as $p) {
                     $args[$p[1]] = $value($p[2]);
                 }

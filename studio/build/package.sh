@@ -64,6 +64,19 @@ grep -q 'data-app-bytes="[1-9]' "$APP/index.html" || { echo "error: the page doe
 BUILD="${AI_PHOTOSHOP_BUILD:-local}"
 BUILD_DATE="$(TZ=Europe/Minsk date +%Y-%m-%d)"
 printf '{"build":"%s","date":"%s","commit":"%s"}\n' "$BUILD" "$BUILD_DATE" "$STAMP" >"$APP/studio/version.json"
+# Номер сборки — и в самой странице: панель сравнит его с version.json на сервере и подскажет,
+# если браузер показывает старую копию из кэша.
+sed -i.bak "s#<html lang=\"ru\"#<html lang=\"ru\" data-build=\"$BUILD\"#" "$APP/index.html" && rm -f "$APP/index.html.bak"
+# index.php отдаёт ту же страницу, но запрещает браузеру брать её из кэша: после обновления папки
+# сразу открывается новая версия, без настроек nginx (nginx берёт index.php раньше index.html).
+cat >"$APP/index.php" <<'PHP'
+<?php
+// Страница редактора — всегда свежая: браузер не показывает старую копию после обновления папки.
+header('Content-Type: text/html; charset=utf-8');
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
+readfile(__DIR__ . '/index.html');
+PHP
 ZIP="$DIST/ai-photoshop-build-$BUILD-$BUILD_DATE.zip"
 rm -f "$ZIP"
 (cd "$OUT" && zip -qr9 "$ZIP" ai-photoshop)
