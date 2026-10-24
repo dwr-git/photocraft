@@ -1165,7 +1165,14 @@
           $('sub').textContent = 'Модель: ' + j.model + ' · сборка ' + v.build + (d ? ' от ' + d : '');
           const pageBuild = document.documentElement.dataset.build;
           if (pageBuild && pageBuild !== String(v.build)) {
-            msg('note', `Открыта старая копия страницы из кэша браузера (сборка ${esc(pageBuild)}), а на сервере уже сборка ${esc(String(v.build))}. Нажмите <b>Ctrl+F5</b>, чтобы загрузить новую.`);
+            const page = +pageBuild, server = +v.build;
+            if (page > server) {
+              msg('note', `Страница — от сборки ${esc(pageBuild)}, а файлы на сервере частично остались от сборки ${esc(String(v.build))}: ` +
+                'программа заливки, похоже, пропустила файлы того же размера. Удалите старую папку на сервере целиком и залейте новую ' +
+                '(или включите в программе «перезаписывать всегда»).');
+            } else {
+              msg('note', `Открыта старая копия страницы из кэша браузера (сборка ${esc(pageBuild)}), а на сервере уже сборка ${esc(String(v.build))}. Нажмите <b>Ctrl+F5</b>, чтобы загрузить новую.`);
+            }
           }
         }).catch(() => {});
       }

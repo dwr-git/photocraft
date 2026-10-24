@@ -33,7 +33,9 @@ fn parts(list: &str) -> Option<Vec<String>> {
     if lines.next() != Some(MARKER) {
         return None;
     }
-    let parts: Vec<String> = lines.map(str::to_owned).collect();
+    // Lines starting with `#` are notes (packaging writes the build number there, so the file's
+    // size changes with every build and upload tools that skip same-size files still replace it).
+    let parts: Vec<String> = lines.filter(|l| !l.starts_with('#')).map(str::to_owned).collect();
     let plain = |p: &String| !p.starts_with('.') && !p.contains(['/', '\\', '?', '#', ':', '%']);
     (!parts.is_empty() && parts.iter().all(plain)).then_some(parts)
 }
@@ -351,6 +353,13 @@ mod tests {
 
     /// Part names are joined onto `./app/`, so one that could leave that folder, or name another
     /// origin, refuses the whole list.
+    #[test]
+    fn notes_in_the_parts_list_are_skipped() {
+        let list = format!("{MARKER}\n# build 21, 2026-10-24 ########\na.part-aa\nb.part-ab\n");
+        assert_eq!(parts(&list), Some(vec!["a.part-aa".to_string(), "b.part-ab".to_string()]));
+        assert_eq!(parts(&format!("{MARKER}\n# only a note\n")), None, "no parts");
+    }
+
     #[test]
     fn a_part_name_cannot_point_outside_the_app_folder() {
         for bad in ["../index.html", "a/b.part-aa", "a\\b", "https://example.com/x", "//example.com/x", "x?y", "x#y", ".hidden", "%2e%2e"] {
