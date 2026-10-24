@@ -14,7 +14,7 @@
     api: 'api/assistant.php',
     labels: 'studio/ru-labels.json',
     language: 'ru',            // язык интерфейса редактора; '' — не трогать
-    defaultTheme: 'neuLight',  // тема при первом запуске
+    defaultTheme: 'brand',     // тема при первом запуске
     maxSteps: 10,              // сколько шагов подряд помощник может сделать за один запрос
     screenshotMax: 1024,       // длинная сторона снимка экрана для модели, px
     openOnStart: false,
@@ -233,6 +233,7 @@
     bulb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>',
     hand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4l6 6-9 9H5v-6z"/><path d="M12.5 5.5l6 6"/></svg>',
     sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+    palette: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a10 10 0 1 1 10-10c0 2.8-2.2 4-4 4h-2.2a2 2 0 0 0-1.4 3.4A1.6 1.6 0 0 1 12 22z"/><circle cx="7.5" cy="10.5" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="16.5" cy="10.5" r="1.2"/></svg>',
     moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>',
     eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
@@ -257,7 +258,10 @@
         <div class="st-logo st-brain st-raised-sm" aria-hidden="true">${BRAIN}</div>
         <div class="st-title"><b>Помощник</b><small data-ref="sub">Загрузка редактора…</small></div>
         <button class="st-icon-btn" data-ref="barBtn" title="Быстрая строка (Ctrl+Shift+Пробел)" aria-label="Быстрая строка">${ICON.bolt}</button>
-        <button class="st-icon-btn" data-ref="theme" title="Светлая / тёмная тема" aria-label="Светлая или тёмная тема">${ICON.moon}</button>
+        <div class="st-theme-wrap">
+          <button class="st-icon-btn" data-ref="theme" title="Тема оформления" aria-label="Тема оформления" aria-haspopup="menu" aria-expanded="false">${ICON.palette}</button>
+          <div class="st-theme-menu" data-ref="themeMenu" role="menu" hidden></div>
+        </div>
         <button class="st-icon-btn" data-ref="hide" title="Свернуть панель" aria-label="Свернуть панель">${ICON.close}</button>
       </header>
       <div class="st-seg st-pressed" role="group" aria-label="Режим помощника">
@@ -626,7 +630,7 @@
         return { ok: !bad.length, results };
       }
       default:
-        return { ok: false, error: `Нет инструмента ${name}` };
+        return { ok: false, error: `Инструмента «${name}» нет. Доступны только: ${TOOL_NAMES.join(', ')}. Кликов по координатам нет: найди команду через find_commands и выполни её run_command или open_command.` };
     }
   }
 
@@ -716,9 +720,12 @@
     }
     return j;
   }
+  // Шлюз модели не передаёт инструменты штатно (вызовы приходят текстом) — запоминаем это.
+  let textTools = store.get('textTools', false);
   async function ask() {
-    const r = await postApi({ mode, messages: outgoing() });
+    const r = await postApi({ mode, messages: outgoing(), textTools });
     const j = await readAnswer(r);
+    if (j && j.ok && j.textTools && !textTools) { textTools = true; store.set('textTools', true); }
     if (!j.ok) {
       const e = new Error(j.error || 'Ошибка помощника');
       e.noVision = !!j.noVision;
@@ -757,7 +764,7 @@
         typing(false);
         const m = j.message || {};
         let calls = Array.isArray(m.tool_calls) ? m.tool_calls : [];
-        let content = m.content || '';
+        let content = (m.content || '').replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
         if (!calls.length) {
           calls = inlineCalls(content);
           if (calls.length) content = content.replace(/\{[\s\S]*\}/, '').trim();
@@ -1082,7 +1089,31 @@
     const brand = themeId === 'brand';
     root.dataset.theme = panelThemeOf(themeId);
     document.documentElement.classList.toggle('studio-brand', brand);
-    $('theme').innerHTML = root.dataset.theme === 'light' ? ICON.moon : ICON.sun;
+    renderThemeMenu(themeId);
+  }
+  // Список тем вместо кнопки солнце/луна: сначала наши три, потом остальные.
+  const THEMES = [
+    ['brand', 'Фирменная'], ['neuLight', 'Неоморфная светлая'], ['neuDark', 'Неоморфная тёмная'], null,
+    ['pro', 'Pro (Dark)'], ['proMedium', 'Pro (Medium Gray)'], ['proLightGray', 'Pro (Light Gray)'], ['proLight', 'Pro (Light)'],
+    ['studio', 'Studio (Dark)'], ['studioLight', 'Studio (Light)'], ['classic', 'Classic'], ['solarizedDark', 'Solarized Dark'],
+    ['adwaita', 'Adwaita (Light)'], ['adwaitaDark', 'Adwaita (Dark)'], ['breezeLight', 'Breeze Light'], ['breezeDark', 'Breeze Dark'],
+    ['softDark', 'Soft Dark'], ['softLight', 'Soft Light'],
+  ];
+  const themeName = (label) => (L && L.text && L.text[label]) || label;
+  function renderThemeMenu(current) {
+    const menu = $('themeMenu');
+    if (!menu) return;
+    menu.innerHTML = THEMES.map((t) => (t
+      ? `<button role="menuitemradio" aria-checked="${t[0] === current}" data-theme-id="${t[0]}">${esc(t[0] === 'brand' || t[0].startsWith('neu') ? t[1] : themeName(t[1]))}</button>`
+      : '<hr>')).join('');
+    menu.querySelectorAll('button').forEach((b) => { b.onclick = () => { toggleThemeMenu(false); setTheme(b.dataset.themeId); }; });
+  }
+  function toggleThemeMenu(open) {
+    const menu = $('themeMenu');
+    if (!menu) return;
+    const show = open == null ? menu.hidden : open;
+    menu.hidden = !show;
+    $('theme').setAttribute('aria-expanded', String(show));
   }
   // Градиент фирменной темы редактор рисует по размеру всего окна, а не только холста.
   function syncBackdrop() {
@@ -1157,7 +1188,9 @@
     });
     $('clear').onclick = () => { if (!busy) { convo = []; showEmpty(); } };
     // Луна/солнце — между светлой и тёмной неоморфными; из фирменной — в светлую.
-    $('theme').onclick = () => setTheme(root.dataset.theme === 'light' ? 'neuDark' : 'neuLight');
+    $('theme').onclick = (e) => { e.stopPropagation(); toggleThemeMenu(); };
+    document.addEventListener('pointerdown', (e) => { if (!e.target.closest || !e.target.closest('.st-theme-wrap')) toggleThemeMenu(false); }, true);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggleThemeMenu(false); });
     input.addEventListener('input', autosize);
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }

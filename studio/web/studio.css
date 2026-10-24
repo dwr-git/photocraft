@@ -404,3 +404,24 @@ body.studio-open .st-bar { left: calc((100% - var(--st-w)) / 2); width: min(640p
   .st-panel, .st-fab, .st-seg button { transition: none; }
   .st-typing i { animation: none; }
 }
+
+/* Список тем в шапке панели */
+.st-theme-wrap { position: relative; display: inline-flex; }
+.st-theme-menu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 30;
+  min-width: 220px; max-height: 60vh; overflow: auto;
+  display: flex; flex-direction: column; padding: 6px;
+  border-radius: 14px; background: var(--st-bg);
+  box-shadow: 6px 6px 16px var(--st-sh-dark), -6px -6px 16px var(--st-sh-light);
+}
+.st-theme-menu[hidden] { display: none; }
+.st-theme-menu button {
+  text-align: left; border: 0; background: transparent; color: var(--st-text);
+  font: inherit; font-size: 13px; padding: 8px 10px 8px 28px; border-radius: 9px; cursor: pointer; position: relative;
+}
+.st-theme-menu button:hover { background: var(--st-field); }
+.st-theme-menu button[aria-checked="true"] { font-weight: 600; color: var(--st-accent); }
+.st-theme-menu button[aria-checked="true"]::before { content: "✓"; position: absolute; left: 10px; }
+.st-theme-menu hr { border: 0; border-top: 1px solid var(--st-line, rgba(127,127,127,.25)); margin: 5px 6px; }
+#studio-root[data-theme="brand"] .st-theme-menu { background: #000; box-shadow: rgb(0 0 0) 0 8px 32px; }
+#studio-root[data-theme="brand"] .st-theme-menu button:hover { background: rgba(255,255,255,.1); }

@@ -699,18 +699,14 @@ pub fn title_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                     {
                         app.ui.palette_open = !app.ui.palette_open;
                     }
-                    let (theme_icon, appearance_label) = match app.session.prefs().interface.appearance_mode {
-                        photocraft_engine::prefs::AppearanceMode::Auto => ("monitor", tl!("Auto")),
-                        photocraft_engine::prefs::AppearanceMode::Dark => ("moon", tl!("Dark")),
-                        photocraft_engine::prefs::AppearanceMode::Light => ("sun", tl!("Light")),
-                    };
-                    let appearance_tip = format!("{}: {}", tl!("Appearance Mode"), appearance_label);
+                    // Theme: a list to pick from (our three looks first, then the rest), instead of
+                    // cycling light/dark/auto with a sun/moon icon.
                     if icons_shown >= 2 {
-                        let button = icons::button(ui, theme_icon, 28.0, false, &appearance_tip);
-                        if button.clicked() {
-                            crate::prefs_ui::cycle_appearance(app, ui.ctx());
-                        }
-                        button.context_menu(|ui| crate::prefs_ui::appearance_context_menu(app, ui));
+                        let current = crate::theme::Tokens::get(ui.ctx()).kind;
+                        let tip = format!("{}: {}", tl!("Theme"), tl!(current.label()));
+                        let button = icons::button(ui, "palette", 28.0, false, &tip);
+                        let ctx = ui.ctx().clone();
+                        egui::Popup::menu(&button).show(|ui| theme_menu(app, &ctx, ui, current));
                     }
                     if rtl { ui.min_rect().right() } else { ui.min_rect().left() }
                 };
@@ -750,6 +746,32 @@ pub fn title_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
 /// example that never turned the preference on.
 pub fn system_title_bar(app: &PhotocraftApp) -> bool {
     !app.custom_titlebar && app.session.prefs().interface.system_title_bar && !cfg!(any(target_os = "macos", target_arch = "wasm32"))
+}
+
+/// The title bar's theme list: our three looks (Brand, Neumorphic light and dark), then every other
+/// theme, then «Sync with system». Picking one runs its `window.theme.<id>` command, like the menu.
+fn theme_menu(app: &mut PhotocraftApp, ctx: &egui::Context, ui: &mut egui::Ui, current: crate::theme::ThemeKind) {
+    use crate::theme::ThemeKind as K;
+    const OURS: [K; 3] = [K::Brand, K::NeuLight, K::NeuDark];
+    ui.set_min_width(220.0);
+    let pick = |app: &mut PhotocraftApp, ui: &mut egui::Ui, kind: K| {
+        if ui.selectable_label(current == kind, tl!(kind.label())).clicked() {
+            let _ = crate::menus::invoke(app, ctx, &format!("window.theme.{}", kind.id()), serde_json::json!({}));
+            ui.close();
+        }
+    };
+    for kind in OURS {
+        pick(app, ui, kind);
+    }
+    ui.separator();
+    for kind in K::ALL.into_iter().filter(|k| !OURS.contains(k)) {
+        pick(app, ui, kind);
+    }
+    ui.separator();
+    if ui.button(tl!("Sync with system")).clicked() {
+        let _ = crate::menus::invoke(app, ctx, "window.theme.system", serde_json::json!({}));
+        ui.close();
+    }
 }
 
 /// The OS window title: the active document's name suffixed with the app name (a `*` prefix

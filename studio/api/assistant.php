@@ -184,6 +184,26 @@ function studio_clean_messages(array $messages, array $limits): array
 }
 
 $messages = studio_clean_messages($in['messages'], $STUDIO);
+// Шлюз без поддержки инструментов (вызовы приходят текстом): историю вызовов и их результатов
+// тоже передаём текстом, в том же виде, в каком модель их пишет.
+$textTools = !empty($in['textTools']);
+if ($textTools) {
+    foreach ($messages as &$m) {
+        if ($m['role'] === 'assistant' && !empty($m['tool_calls'])) {
+            foreach ($m['tool_calls'] as $c) {
+                $block = '<tool_call><function=' . $c['function']['name'] . '>';
+                foreach ((array)$c['function']['arguments'] as $k => $v) {
+                    $block .= '<parameter=' . $k . '>' . (is_string($v) ? $v : json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . '</parameter>';
+                }
+                $m['content'] = trim($m['content'] . "\n" . $block . '</function></tool_call>');
+            }
+            unset($m['tool_calls']);
+        } elseif ($m['role'] === 'tool') {
+            $m = ['role' => 'user', 'content' => '[Результат инструмента ' . ($m['tool_name'] ?? '') . "]\n" . $m['content']];
+        }
+    }
+    unset($m);
+}
 $tools = studio_read_tools();
 if ($mode === 'act') {
     $tools = array_merge($tools, studio_act_tools());
@@ -295,14 +315,28 @@ foreach (($msg['tool_calls'] ?? []) as $c) {
     $calls[] = ['function' => ['name' => (string)$fn['name'], 'arguments' => $args ?: new stdClass()]];
 }
 
+// Шлюз мог вернуть вызовы инструментов текстом (Qwen XML или JSON в <tool_call>) — разбираем сами.
+$content = (string)($msg['content'] ?? '');
+$textCalls = [];
+if ($mode !== 'suggest') {
+    [$textCalls, $content] = studio_text_tool_calls($content);
+    if (!$calls) {
+        $calls = $textCalls;
+    } else {
+        $textCalls = [];
+    }
+}
+
 echo json_encode([
     'ok' => true,
     'model' => $res['model'] ?? $model,
     'message' => [
         'role' => 'assistant',
-        'content' => (string)($msg['content'] ?? ''),
+        'content' => $content,
         'tool_calls' => $calls,
     ],
+    // Вызовы пришли текстом: панель запомнит это и дальше будет присылать историю текстом.
+    'textTools' => $textTools || count($textCalls) > 0,
     'finish' => (string)($res['done_reason'] ?? ''),
     'usage' => [
         'prompt_tokens' => (int)($res['prompt_eval_count'] ?? 0),

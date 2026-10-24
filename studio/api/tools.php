@@ -208,6 +208,8 @@ function studio_system_prompt(string $mode): string
         $tools[] = "$id — $ru";
     }
     $toolList = implode('; ', $tools);
+    $available = $mode === 'act' ? array_merge(studio_read_tools(), studio_act_tools()) : studio_read_tools();
+    $catalog = studio_tool_catalog($available);
 
     $common = <<<TXT
 Ты — встроенный помощник графического редактора AI-Photoshop (аналог Adobe Photoshop: те же меню, инструменты и горячие клавиши; интерфейс на русском).
@@ -221,6 +223,12 @@ function studio_system_prompt(string $mode): string
 - Если документ не открыт, а задача требует документа, подскажи открыть файл (Файл › Открыть, Ctrl+O) или перетащить его в окно.
 
 Инструменты панели (имя для select_tool — русское название): {$toolList}.
+
+Твои инструменты (других нет — ни computer_use, ни кликов по координатам):
+{$catalog}
+Вызывай их штатно. Если штатный вызов недоступен, напиши вызов текстом, по одному блоку на вызов:
+<tool_call><function=ИМЯ><parameter=КЛЮЧ>ЗНАЧЕНИЕ</parameter></function></tool_call>
+Значения-объекты и списки пиши в JSON. После блока ничего не пиши — дождись результата.
 TXT;
 
     if ($mode === 'act') {
@@ -274,3 +282,74 @@ function studio_suggest_prompt(): string
 {"suggestions":[{"title":"...","why":"...","command":"id из списка","params":{...}}]}
 TXT;
 }
+
+/**
+ * Каталог инструментов текстом — для системной подсказки. Некоторые шлюзы (например, vLLM без
+ * парсера вызовов) не передают модели поле tools; тогда модель узнаёт о наших инструментах
+ * только отсюда и пишет вызовы текстом.
+ */
+function studio_tool_catalog(array $tools): string
+{
+    $lines = [];
+    foreach ($tools as $t) {
+        $f = $t['function'] ?? [];
+        $name = (string)($f['name'] ?? '');
+        if ($name === '') {
+            continue;
+        }
+        $params = [];
+        foreach (($f['parameters']['properties'] ?? []) as $p => $spec) {
+            $params[] = $p . ': ' . ($spec['type'] ?? 'string');
+        }
+        $lines[] = '- ' . $name . '(' . implode(', ', $params) . ') — ' . (string)($f['description'] ?? '');
+    }
+    return implode("\n", $lines);
+}
+
+/**
+ * Вызовы инструментов, которые модель написала текстом, а не штатным полем tool_calls:
+ *   <tool_call><function=ИМЯ><parameter=КЛЮЧ>ЗНАЧЕНИЕ</parameter>…</function></tool_call>  (Qwen)
+ *   <tool_call>{"name": "ИМЯ", "arguments": {…}}</tool_call>                             (Hermes)
+ * Возвращает [вызовы, текст без этих блоков].
+ */
+function studio_text_tool_calls(string $content): array
+{
+    $calls = [];
+    $value = static function (string $raw) {
+        $raw = trim($raw);
+        $j = json_decode($raw, true);
+        return ($j !== null || $raw === 'null') ? $j : $raw;
+    };
+    // Qwen XML: с обёрткой <tool_call> или без неё.
+    if (preg_match_all('~(?:<tool_call>\s*)?<function=([A-Za-z0-9_.\-]+)>(.*?)</function>(?:\s*</tool_call>)?~s', $content, $m, PREG_SET_ORDER)) {
+        foreach ($m as $one) {
+            $args = [];
+            if (preg_match_all('~<parameter=([A-Za-z0-9_.\-]+)>(.*?)</parameter>~s', $one[2], $pm, PREG_SET_ORDER)) {
+                foreach ($pm as $p) {
+                    $args[$p[1]] = $value($p[2]);
+                }
+            }
+            $calls[] = ['function' => ['name' => $one[1], 'arguments' => $args ?: new stdClass()]];
+            $content = str_replace($one[0], '', $content);
+        }
+    }
+    // Hermes: JSON внутри <tool_call>.
+    if (preg_match_all('~<tool_call>\s*(\{.*?\})\s*</tool_call>~s', $content, $m, PREG_SET_ORDER)) {
+        foreach ($m as $one) {
+            $j = json_decode($one[1], true);
+            if (is_array($j) && isset($j['name'])) {
+                $args = $j['arguments'] ?? ($j['parameters'] ?? []);
+                if (is_string($args)) {
+                    $args = json_decode($args, true) ?: [];
+                }
+                $calls[] = ['function' => ['name' => (string)$j['name'], 'arguments' => $args ?: new stdClass()]];
+                $content = str_replace($one[0], '', $content);
+            }
+        }
+    }
+    // Рассуждения модели в ответ не нужны.
+    $content = preg_replace('~<think>.*?</think>~s', '', $content) ?? $content;
+    $content = trim(str_replace(['<tool_call>', '</tool_call>'], '', $content));
+    return [$calls, $content];
+}
+
