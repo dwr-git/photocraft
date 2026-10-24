@@ -72,16 +72,9 @@ printf '# build %s, %s %s\n' "$BUILD" "$BUILD_DATE" "$PAD" >>"$APP/app/parts.txt
 # Номер сборки — и в самой странице: панель сравнит его с version.json на сервере и подскажет,
 # если браузер показывает старую копию из кэша.
 sed -i.bak "s#<html lang=\"ru\"#<html lang=\"ru\" data-build=\"$BUILD\"#" "$APP/index.html" && rm -f "$APP/index.html.bak"
-# index.php отдаёт ту же страницу, но запрещает браузеру брать её из кэша: после обновления папки
-# сразу открывается новая версия, без настроек nginx (nginx берёт index.php раньше index.html).
-cat >"$APP/index.php" <<'PHP'
-<?php
-// Страница редактора — всегда свежая: браузер не показывает старую копию после обновления папки.
-header('Content-Type: text/html; charset=utf-8');
-header('Cache-Control: no-cache, no-store, must-revalidate');
-header('Pragma: no-cache');
-readfile(__DIR__ . '/index.html');
-PHP
+# Каждая сборка — в своей папке b/<номер>/, index.php выбирает самую новую (studio/build/versioned.sh):
+# обновление любой программой заливки не может смешать файлы разных сборок.
+"$ROOT/studio/build/versioned.sh" "$APP" "$BUILD" "AI-Photoshop"
 # Каждый текстовый файл с постоянным именем (страница, index.php, скрипты и стили панели, PHP
 # помощника, файл запуска с постоянным именем) получает в конце строку с номером сборки и набивкой
 # той же разной длины: иначе программа заливки, которая пропускает файлы того же размера, оставит
@@ -95,7 +88,7 @@ pad_file() {
   esac
 }
 while IFS= read -r f; do pad_file "$f"; done < <(find "$APP" -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.php' \) | grep -vE '[-_][0-9a-f]{16}[-_.][^/]*$')
-grep -q "<!-- build $BUILD " "$APP/index.html" || { echo "error: the page has no build padding" >&2; exit 1; }
+cat "$APP"/b/*/index.html | grep -q "<!-- build $BUILD " || { echo "error: the page has no build padding" >&2; exit 1; }
 ZIP="$DIST/ai-photoshop-build-$BUILD-$BUILD_DATE.zip"
 rm -f "$ZIP"
 (cd "$OUT" && zip -qr9 "$ZIP" ai-photoshop)
