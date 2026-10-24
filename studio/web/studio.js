@@ -303,8 +303,21 @@
     advice: 'Объясняю и подсказываю, ничего не меняю в документе.',
     act: 'Делаю сам: нажимаю команды и настраиваю диалоги. Всё отменяется Ctrl+Z.',
   };
+  // Модель видит всю переписку. Если раньше она писала «я в режиме Совет», то по инерции продолжает
+  // так отвечать и после переключения. Поэтому смена режима отмечается прямо в разговоре,
+  // а каждое сообщение пользователя несёт текущий режим.
+  const MODE_NOTE = {
+    act: '[Режим переключён на «Сделай». Теперь ты сам выполняешь просьбы инструментами (find_commands, run_command, open_command…). Всё, что ты раньше писал про режим «Совет», больше не действует.]',
+    advice: '[Режим переключён на «Совет». Теперь только объясняй и подсказывай, ничего не меняй в документе.]',
+  };
+  const MODE_TAG = {
+    act: '[Режим сейчас: «Сделай» — выполни это сам, инструментами]',
+    advice: '[Режим сейчас: «Совет» — объясни, как сделать, ничего не меняя]',
+  };
   function setMode(m) {
-    mode = m === 'act' ? 'act' : 'advice';
+    const next = m === 'act' ? 'act' : 'advice';
+    if (next !== mode && convo.length) convo.push({ role: 'user', content: MODE_NOTE[next] });
+    mode = next;
     store.set('mode', mode);
     root.querySelectorAll('.st-seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     $('hint').textContent = HINTS[mode];
@@ -734,7 +747,7 @@
       }
       convo.push({
         role: 'user',
-        content: text + '\n\n[Состояние редактора — автоматически]\n' + clip(JSON.stringify(state ?? { note: 'Редактор ещё загружается' }), 4000),
+        content: MODE_TAG[mode] + '\n' + text + '\n\n[Состояние редактора — автоматически]\n' + clip(JSON.stringify(state ?? { note: 'Редактор ещё загружается' }), 4000),
         ...(image ? { images: [image] } : {}),
       });
       for (let step = 0; step < CFG.maxSteps; step++) {
@@ -748,6 +761,12 @@
         if (!calls.length) {
           calls = inlineCalls(content);
           if (calls.length) content = content.replace(/\{[\s\S]*\}/, '').trim();
+        }
+        // «Сделай», а модель всё равно ответила как в «Совете» — одна попытка её поправить.
+        if (mode === 'act' && !calls.length && step === 0 && /режим\S*\s*«?Совет/i.test(content)) {
+          convo.push({ role: 'assistant', content: m.content || '' });
+          convo.push({ role: 'user', content: MODE_NOTE.act + ' Выполни просьбу сейчас.' });
+          continue;
         }
         convo.push({ role: 'assistant', content: m.content || '', ...(calls.length ? { tool_calls: calls } : {}) });
         if (content) msg('bot', format(content));
