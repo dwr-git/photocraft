@@ -1612,6 +1612,16 @@ pub const ALTERNATE_SHORTCUTS: &[(&str, &str)] = &[
     ("view.zoomIn", "Cmd++"),
     #[cfg(not(target_os = "macos"))]
     ("file.close", "Cmd+F4"),
+    // AI-Photoshop in the browser: the browser keeps Ctrl+T, Ctrl+N, Ctrl+Shift+N, Ctrl+Shift+T
+    // for its own tabs and windows (outside full screen), so each also has a key it lets through.
+    #[cfg(target_arch = "wasm32")]
+    ("edit.freeTransform", "F9"),
+    #[cfg(target_arch = "wasm32")]
+    ("edit.transform.again", "Shift+F9"),
+    #[cfg(target_arch = "wasm32")]
+    ("file.new", "Cmd+Alt+N"),
+    #[cfg(target_arch = "wasm32")]
+    ("layer.new.layer", "Cmd+Alt+Shift+N"),
 ];
 
 /// A command's default alternate keys ([`ALTERNATE_SHORTCUTS`]).

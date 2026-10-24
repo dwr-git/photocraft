@@ -241,6 +241,8 @@
     stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>',
     // Мозг — контур из набора Tabler Icons (MIT), нарисованный градиентом #st-brain-grad.
     brain: '<svg class="st-brain-svg" viewBox="0 0 24 24" fill="none" stroke="url(#st-brain-grad)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 13a3.5 3.5 0 0 0 -3.5 3.5v1a3.5 3.5 0 0 0 7 0v-1.8"/><path d="M8.5 13a3.5 3.5 0 0 1 3.5 3.5v1a3.5 3.5 0 0 1 -7 0v-1.8"/><path d="M17.5 16a3.5 3.5 0 0 0 0 -7h-.5"/><path d="M19 9.3v-2.8a3.5 3.5 0 0 0 -7 0"/><path d="M6.5 16a3.5 3.5 0 0 1 0 -7h.5"/><path d="M5 9.3v-2.8a3.5 3.5 0 0 1 7 0v10"/></svg>',
+    expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>',
+    shrink: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>',
     bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3l-8 11h6l-1 7 8-11h-6z"/></svg>',
   };
   // Живой контур: мозг градиентом и три точки на орбите, пока помощник работает.
@@ -257,6 +259,7 @@
       <header class="st-head">
         <div class="st-logo st-brain st-raised-sm" aria-hidden="true">${BRAIN}</div>
         <div class="st-title"><b>Помощник</b><small data-ref="sub">Загрузка редактора…</small></div>
+        <button class="st-icon-btn" data-ref="fullBtn" title="Во весь экран (F11): Ctrl+T, Ctrl+N, Ctrl+W работают как в Photoshop" aria-label="Во весь экран">${ICON.expand}</button>
         <button class="st-icon-btn" data-ref="barBtn" title="Быстрая строка (Ctrl+Shift+Пробел)" aria-label="Быстрая строка">${ICON.bolt}</button>
         <div class="st-theme-wrap">
           <button class="st-icon-btn" data-ref="theme" title="Тема оформления" aria-label="Тема оформления" aria-haspopup="menu" aria-expanded="false">${ICON.palette}</button>
@@ -1184,6 +1187,39 @@
 
   function autosize() { input.style.height = 'auto'; input.style.height = Math.min(160, input.scrollHeight) + 'px'; }
 
+  // ------------------------------------------------------------------ весь экран
+  // В обычной вкладке браузер сам забирает Ctrl+T, Ctrl+N, Ctrl+W и Ctrl+Shift+N/T (новая вкладка,
+  // окно, закрыть). Во весь экран страница может попросить эти клавиши себе (Keyboard Lock, Chrome
+  // и Edge) — тогда они работают как в Photoshop. Выйти — удерживать Esc (короткое нажатие Esc
+  // остаётся редактору: отменить трансформирование и т. п.).
+  const LOCK_KEYS = ['KeyT', 'KeyN', 'KeyW', 'KeyR', 'KeyL', 'Tab', 'Escape'];
+  const isFull = () => !!document.fullscreenElement;
+  async function enterFull() {
+    try {
+      if (!isFull()) await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      if (navigator.keyboard && navigator.keyboard.lock) {
+        await navigator.keyboard.lock(LOCK_KEYS);
+        toast('Весь экран: Ctrl+T, Ctrl+N, Ctrl+W работают как в Photoshop. Выйти — удерживайте Esc.');
+      } else {
+        toast('Весь экран. Этот браузер не отдаёт Ctrl+T странице — используйте F9 (Свободное трансформирование). Выйти — Esc.');
+      }
+    } catch (e) { toast('Не удалось перейти во весь экран: ' + (e.message || e), true); }
+  }
+  async function exitFull() {
+    try { if (navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock(); if (isFull()) await document.exitFullscreen(); } catch { /* уже вышли */ }
+  }
+  function syncFullBtn() {
+    const b = $('fullBtn');
+    if (!b) return;
+    b.innerHTML = isFull() ? ICON.shrink : ICON.expand;
+    b.title = isFull() ? 'Выйти из полноэкранного режима (удерживайте Esc)' : 'Во весь экран (F11): Ctrl+T, Ctrl+N, Ctrl+W работают как в Photoshop';
+  }
+  document.addEventListener('fullscreenchange', () => { if (!isFull() && navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock(); syncFullBtn(); setTimeout(() => window.dispatchEvent(new Event('resize')), 100); });
+  // F11 — наш полноэкранный режим (с клавишами Photoshop), а не браузерный.
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'F11' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); e.stopImmediatePropagation(); if (isFull()) exitFull(); else enterFull(); }
+  }, true);
+
   function mount() {
     document.body.appendChild(root);
     root.querySelectorAll('.st-seg button').forEach((b) => { b.onclick = () => setMode(b.dataset.mode); });
@@ -1192,6 +1228,8 @@
     $('fab').onclick = () => { setOpen(true); setBadge(false); };
     $('send').onclick = () => send();
     $('barBtn').onclick = () => setBar(!root.classList.contains('bar-open'));
+    $('fullBtn').onclick = () => (isFull() ? exitFull() : enterFull());
+    syncFullBtn();
     $('barSend').onclick = () => (busy ? send() : sendFromBar());
     $('barMode').onclick = () => setMode(mode === 'act' ? 'advice' : 'act');
     barInput.addEventListener('keydown', (e) => {
