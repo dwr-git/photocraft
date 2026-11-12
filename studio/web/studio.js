@@ -1400,6 +1400,7 @@
     let last = null;                 // файл на сервере, открытый или сохранённый последним
     const mine = new Set();          // файлы сервера, открытые или сохранённые в этой вкладке
     const alias = new Map();         // имя в редакторе → имя на сервере, если сохранили под другим
+    const fresh = new Set();         // открыты с сервера и ещё ни разу не сохранялись
     let saveAsNext = false;          // «Сохранить как» из окна «Мои файлы»
     let downloadNext = false;        // «На компьютер»: следующее сохранение — скачать
     let flagTimer = 0;
@@ -1461,6 +1462,7 @@
         const bytes = new Uint8Array(await r.arrayBuffer());
         if (!openInEditor(name, bytes)) throw new Error('редактор не принял файл');
         mine.add(name);
+        fresh.add(name);
         last = name;
         show(false);
       } catch (e) { toast('Не удалось открыть: ' + e.message, true); }
@@ -1487,14 +1489,17 @@
         if (downloadBytes(appName, bytes)) toast('Файл «' + appName + '» скачан на компьютер.');
         return;
       }
-      const asked = saveAsNext || !!d.saveAs;
-      saveAsNext = false;
       const known = alias.get(appName) || appName;
+      // У файла, только что открытого с сервера, в редакторе ещё нет пути, и первое Ctrl+S проходит
+      // через окно сохранения: это обычное сохранение туда же, а не «Сохранить как».
+      const asked = saveAsNext || (!!d.saveAs && !fresh.has(known));
+      saveAsNext = false;
+      fresh.delete(known);
       let name = !asked && mine.has(known) ? known : null;
       let overwrite = !!name;
       try {
         if (!name) {
-          const choice = await askName(asked ? 'Сохранить как' : 'Сохранить на сервере', known, 'Файл появится в «Моих файлах».', 'На компьютер');
+          const choice = await askName(asked && mine.has(known) ? 'Сохранить как' : 'Сохранить на сервере', known, 'Файл появится в «Моих файлах».', 'На компьютер');
           if (choice === ASK_ALT) {
             if (downloadBytes(appName, bytes)) toast('Файл «' + appName + '» скачан на компьютер.');
             return;
@@ -1510,7 +1515,8 @@
         last = r.name;
         if (r.name !== appName) alias.set(appName, r.name); else alias.delete(appName);
         confirmSaved(d);
-        Recovery.clear();
+        // Копия в браузере больше не нужна, если это тот же файл.
+        Recovery.get().then((c) => { if (c && (c.name === r.name || c.name === appName)) Recovery.clear(); });
         toast('Сохранено в «Моих файлах»: «' + r.name + '»');
         if (!$('files').hidden) { await refresh().catch(() => {}); render(); updateFoot(); }
       } catch (e) {
@@ -1518,7 +1524,7 @@
         Recovery.put({ name: name || appName, data: bytes, time: Date.now() });
         downloadBytes(name || appName, bytes);
         if (e.login) toast('Войдите в систему, чтобы сохранять файлы на сервере. Файл скачан на компьютер.', true);
-        else toast('Не удалось сохранить на сервере: ' + e.message + '. Файл скачан на компьютер.', true);
+        else toast('Не удалось сохранить на сервере: ' + String(e.message).replace(/\.+$/, '') + '. Файл скачан на компьютер.', true);
       }
     }
     // Копия открытого документа на компьютер, без сохранения на сервере.
@@ -1544,6 +1550,7 @@
         // Документ, открытый из этого файла, дальше сохраняется под новым именем.
         for (const [k, v] of alias) if (v === name) alias.set(k, now);
         if (mine.delete(name)) { mine.add(now); if (!alias.has(name)) alias.set(name, now); }
+        if (fresh.delete(name)) fresh.add(now);
         if (last === name) last = now;
         await refresh(); render(); updateFoot();
       } catch (e) { toast('Не удалось переименовать: ' + e.message, true); }
@@ -1554,6 +1561,7 @@
         await json(await fetch(api('action=delete'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }));
         mine.delete(name);
         for (const [k, v] of alias) if (v === name) alias.delete(k);
+        fresh.delete(name);
         if (last === name) last = null;
         await refresh(); render(); updateFoot();
       } catch (e) { toast('Не удалось удалить: ' + e.message, true); }
