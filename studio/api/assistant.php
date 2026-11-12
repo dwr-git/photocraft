@@ -1,12 +1,15 @@
 <?php
-// studio/api/assistant.php — помощник AI-Photoshop: мост между панелью в браузере и Ollama.
+// studio/api/assistant.php — помощник AI-Photoshop: мост между панелью в браузере и моделью.
 //
-//   GET  assistant.php            проверка: вошёл ли пользователь, какая модель, доступна ли она
+//   GET  assistant.php            проверка: вошёл ли пользователь, какая модель и откуда она взята
 //   POST assistant.php            {mode: "advice"|"act", messages: [...]} → {ok, message: {content, tool_calls}}
+//   POST assistant.php            {mode: "suggest", messages}  → подсказки (если приложение их умеет)
+//   POST assistant.php            {mode: "text", …}            → ИИ у выделения (если есть context.php)
 //
-// Инструменты (find_commands, run_command…) выполняет браузер: только он видит
-// запущенный редактор. Здесь — авторизация, системная инструкция, список
-// разрешённых инструментов и запрос к модели.
+// Инструменты (find_commands, run_command…) выполняет браузер: только он видит запущенный
+// редактор. Здесь — авторизация, системная инструкция, список разрешённых инструментов и запрос
+// к модели. Откуда берётся модель и как с ней говорить (Ollama или OpenAI-совместимый сервер) —
+// в llm.php, одинаковом для всех наших приложений.
 
 declare(strict_types=1);
 
@@ -29,6 +32,7 @@ set_exception_handler(static function (Throwable $e): void {
     studio_fail(500, 'Внутренняя ошибка помощника. Подробности — в журнале PHP.');
 });
 
+require_once __DIR__ . '/llm.php';
 $STUDIO = require __DIR__ . '/settings.php';
 require_once __DIR__ . '/tools.php';
 
@@ -55,25 +59,17 @@ if (function_exists('setLLMApp')) {
 }
 
 // ---------------------------------------------------------------- модель
-$ollamaUrl = studio_env('AI_PHOTOSHOP_OLLAMA_URL');
-if ($ollamaUrl === '') {
-    $hostPort = (isset($url_ollama) && is_string($url_ollama) && trim($url_ollama, ':') !== '') ? $url_ollama : '';
-    if ($hostPort === '') {
-        $ip = studio_env('OLLAMA_IP', '127.0.0.1');
-        $port = studio_env('OLLAMA_PORT', '11434');
-        $hostPort = "$ip:$port";
-    }
-    $ollamaUrl = preg_match('#^https?://#i', $hostPort) ? $hostPort : 'http://' . $hostPort;
-}
-$ollamaUrl = rtrim($ollamaUrl, '/');
-$model = studio_env('AI_PHOTOSHOP_MODEL') ?: ((isset($global_model) && is_string($global_model) && $global_model !== '') ? $global_model : studio_env('GLOBAL_MODEL', 'ministral-3:8b'));
-$ctx = (int)(studio_env('AI_PHOTOSHOP_CONTEXT') ?: ((isset($ollama_ctxsize) && (int)$ollama_ctxsize > 0) ? $ollama_ctxsize : '32768'));
+$LLM = studio_llm_config('AI_PHOTOSHOP');
 
 // ---------------------------------------------------------------- GET: проверка
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
     echo json_encode([
         'ok' => true,
-        'model' => $model,
+        'model' => $LLM['model'],
+        'ctx' => $LLM['ctx'],
+        'api' => $LLM['api'],
+        'source' => studio_llm_describe($LLM),
+        'notes' => $LLM['notes'],
         'authenticated' => $__authed,
         'user' => ($__authed && function_exists('getCurrentUser')) ? (getCurrentUser()['login'] ?? null) : null,
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -93,12 +89,19 @@ if ($raw === false || strlen($raw) > $STUDIO['max_body_bytes']) {
     studio_fail(413, 'Слишком большой запрос.');
 }
 $in = json_decode($raw, true, 64);
-if (!is_array($in) || !isset($in['messages']) || !is_array($in['messages'])) {
+$hasText = is_file(__DIR__ . '/context.php');
+$hasSuggest = function_exists('studio_suggest_prompt');
+$mode = match (is_array($in) ? ($in['mode'] ?? '') : '') {
+    'act' => 'act',
+    'text' => $hasText ? 'text' : 'advice',
+    'suggest' => $hasSuggest ? 'suggest' : 'advice',
+    default => 'advice',
+};
+if (!is_array($in) || ($mode !== 'text' && (!isset($in['messages']) || !is_array($in['messages'])))) {
     studio_fail(400, 'Неверный формат запроса: нужен JSON {mode, messages}.');
 }
-$mode = in_array($in['mode'] ?? '', ['act', 'suggest'], true) ? $in['mode'] : 'advice';
 
-/** Оставляет в сообщениях только то, что понимает Ollama, и проверяет размеры. */
+/** Оставляет в сообщениях только то, что понимает модель, и проверяет размеры. */
 function studio_clean_messages(array $messages, array $limits): array
 {
     if (count($messages) === 0) {
@@ -133,7 +136,6 @@ function studio_clean_messages(array $messages, array $limits): array
                 }
                 $imgs[] = $img;
             }
-            // Картинки держим только в последних сообщениях: каждая занимает много контекста.
             if ($imgs) {
                 $msg['images'] = $imgs;
                 $images += count($imgs);
@@ -142,7 +144,7 @@ function studio_clean_messages(array $messages, array $limits): array
         if ($role === 'assistant' && !empty($m['tool_calls']) && is_array($m['tool_calls'])) {
             $calls = [];
             foreach (array_slice($m['tool_calls'], 0, 16) as $c) {
-                $fn = $c['function'] ?? null;
+                $fn = is_array($c) ? ($c['function'] ?? null) : null;
                 if (!is_array($fn) || !isset($fn['name']) || !is_string($fn['name'])) {
                     continue;
                 }
@@ -165,6 +167,13 @@ function studio_clean_messages(array $messages, array $limits): array
         }
         $out[] = $msg;
     }
+    // Разговор начинается с пользователя: результаты шагов без своего вызова модель путают.
+    while ($out && $out[0]['role'] !== 'user') {
+        array_shift($out);
+    }
+    if (!$out) {
+        studio_fail(400, 'Пустой диалог.');
+    }
     // Не больше max_images картинок на запрос: оставляем самые свежие.
     if ($images > $limits['max_images']) {
         $keep = $limits['max_images'];
@@ -183,19 +192,21 @@ function studio_clean_messages(array $messages, array $limits): array
     return $out;
 }
 
-$messages = studio_clean_messages($in['messages'], $STUDIO);
+$contextMode = null;
+if ($mode === 'text') {
+    require_once __DIR__ . '/context.php';
+    [$textSystem, $textMessages, $contextMode] = studio_context_request($in);
+}
+$messages = $mode === 'text' ? $textMessages : studio_clean_messages($in['messages'], $STUDIO);
 // Шлюз без поддержки инструментов (вызовы приходят текстом): историю вызовов и их результатов
 // тоже передаём текстом, в том же виде, в каком модель их пишет.
-$textTools = !empty($in['textTools']);
+$textTools = !in_array($mode, ['text', 'suggest'], true) && !empty($in['textTools']);
 if ($textTools) {
     foreach ($messages as &$m) {
         if ($m['role'] === 'assistant' && !empty($m['tool_calls'])) {
             foreach ($m['tool_calls'] as $c) {
-                $block = '<tool_call><function=' . $c['function']['name'] . '>';
-                foreach ((array)$c['function']['arguments'] as $k => $v) {
-                    $block .= '<parameter=' . $k . '>' . (is_string($v) ? $v : json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . '</parameter>';
-                }
-                $m['content'] = trim($m['content'] . "\n" . $block . '</function></tool_call>');
+                $block = '<tool_call>' . json_encode(['name' => $c['function']['name'], 'arguments' => $c['function']['arguments']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '</tool_call>';
+                $m['content'] = trim($m['content'] . "\n" . $block);
             }
             unset($m['tool_calls']);
         } elseif ($m['role'] === 'tool') {
@@ -204,44 +215,34 @@ if ($textTools) {
     }
     unset($m);
 }
-$tools = studio_read_tools();
+$tools = in_array($mode, ['text', 'suggest'], true) ? [] : studio_read_tools();
 if ($mode === 'act') {
     $tools = array_merge($tools, studio_act_tools());
 }
-$system = $mode === 'suggest' ? studio_suggest_prompt() : studio_system_prompt($mode);
-
-$payload = [
-    'model' => $model,
-    'messages' => array_merge([['role' => 'system', 'content' => $system]], $messages),
-    'stream' => false,
-    'think' => false,
-    'options' => [
-        'temperature' => 0.2,
-        'num_predict' => max(256, $STUDIO['max_tokens']),
-        'num_ctx' => max(4096, $ctx),
-    ],
-];
-if ($mode === 'suggest') {
-    // Подсказки — один строгий JSON, без инструментов.
-    $payload['format'] = 'json';
-} else {
-    $payload['tools'] = $tools;
+$system = match ($mode) {
+    'text' => $textSystem,
+    'suggest' => studio_suggest_prompt(),
+    default => studio_system_prompt($mode),
+};
+// Текстовый протокол вызовов: описания инструментов — в инструкции, а не отдельным полем.
+if ($textTools && $tools) {
+    $system .= studio_llm_text_tools_prompt($tools);
+    $tools = [];
 }
-if (function_exists('enrichLLMPayload')) {
-    enrichLLMPayload($payload, 'ai-photoshop'); // трекинг на шлюзе, как у остальных приложений
+
+// ИИ-талеры кабинета (если он есть рядом): цена операции и остаток, как в контекстном редакторе.
+$__dwt = studio_env('AI_PHOTOSHOP_TALERS_FILE') ?: dirname(__DIR__, 2) . '/cabinet/talers.php';
+if ($mode === 'text' && is_file($__dwt)) {
+    require_once $__dwt;
+    if (function_exists('dwt_begin')) {
+        dwt_begin('ai-photoshop');
+        if (function_exists('dwt_denied') && ($denied = dwt_denied())) {
+            studio_fail(402, (string)$denied, function_exists('dwt_fields') ? dwt_fields() : []);
+        }
+    }
 }
 
 // ---------------------------------------------------------------- запрос к модели
-$ch = curl_init($ollamaUrl . '/api/chat');
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST => true,
-    CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-    CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-    CURLOPT_CONNECTTIMEOUT => 10,
-    CURLOPT_TIMEOUT => max(30, $STUDIO['timeout']),
-]);
-$started = microtime(true);
 // Пока модель думает, раз в 10 секунд отправляем в ответ пробел. Пробелы перед JSON
 // ничего не ломают, а соединение не выглядит «зависшим»: роутеры, VPN и прокси между
 // браузером и сервером часто рвут молчащие соединения, и браузер тогда пишет «Failed to fetch».
@@ -250,75 +251,49 @@ header('X-Accel-Buffering: no');
 while (ob_get_level() > 0) {
     @ob_end_flush();
 }
-$mh = curl_multi_init();
-curl_multi_add_handle($mh, $ch);
-$lastBeat = microtime(true);
-do {
-    $status = curl_multi_exec($mh, $running);
-    if ($running) {
-        curl_multi_select($mh, 1.0);
-    }
-    if (microtime(true) - $lastBeat >= 10) {
+$started = microtime(true);
+$r = studio_llm_chat(
+    $LLM,
+    array_merge([['role' => 'system', 'content' => $system]], $messages),
+    $tools,
+    [
+        'temperature' => $mode === 'text' ? 0.4 : 0.2,
+        'max_tokens' => $STUDIO['max_tokens'],
+        'timeout' => $STUDIO['timeout'],
+        'json' => $mode === 'suggest',
+    ],
+    static function (): void {
         echo ' ';
         flush();
-        $lastBeat = microtime(true);
-    }
-} while ($running && $status === CURLM_OK);
-$body = curl_multi_getcontent($ch);
-$curlError = curl_error($ch);
-if ($curlError === '') {
-    $info = curl_multi_info_read($mh);
-    if (is_array($info) && ($info['result'] ?? CURLE_OK) !== CURLE_OK) {
-        $curlError = curl_strerror((int)$info['result']);
-    }
+    },
+    function_exists('enrichLLMPayload') ? static function (array &$payload): void {
+        enrichLLMPayload($payload, 'ai-photoshop'); // трекинг на шлюзе, как у остальных приложений
+    } : null,
+);
+if (is_array($r['raw'] ?? null) && function_exists('dwt_refused')) {
+    $res = $r['raw'];
+    dwt_refused($res);
 }
-$http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_multi_remove_handle($mh, $ch);
-curl_multi_close($mh);
-curl_close($ch);
-if ($http === 0 && $curlError === '') {
-    $curlError = 'нет ответа от модели за ' . round(microtime(true) - $started) . ' с';
-}
-
-if ($body === null || $body === false || $curlError !== '') {
-    studio_fail(502, 'Модель недоступна: ' . $curlError);
-}
-$res = json_decode((string)$body, true);
-if (!is_array($res)) {
-    studio_fail(502, 'Модель вернула непонятный ответ (HTTP ' . $http . ').');
-}
-// Отказ шлюза или Ollama: {"error": "..."} или {"error": {"message": "..."}}
-if (isset($res['error'])) {
-    $err = is_array($res['error']) ? (string)($res['error']['message'] ?? json_encode($res['error'], JSON_UNESCAPED_UNICODE)) : (string)$res['error'];
-    // Модель не умеет вызывать инструменты — скажем об этом понятно.
-    if (stripos($err, 'does not support tools') !== false) {
-        studio_fail(400, "Модель «{$model}» не умеет вызывать инструменты. Укажите в .env AI_PHOTOSHOP_MODEL с поддержкой tools (например ministral-3:8b или qwen3).");
+if (!$r['ok']) {
+    $err = (string)$r['error'];
+    $where = ' (' . studio_llm_describe($LLM) . ')';
+    if (stripos($err, 'image') !== false && (stripos($err, 'support') !== false || stripos($err, 'vision') !== false)) {
+        studio_fail(400, "Модель «{$LLM['model']}» не принимает картинки. Выключите «глаз» в панели или укажите мультимодальную модель в AI_PHOTOSHOP_MODEL.", ['noVision' => true]);
     }
-    if (stripos($err, 'image') !== false && stripos($err, 'support') !== false) {
-        studio_fail(400, "Модель «{$model}» не принимает картинки. Выключите «глаз» в панели или укажите мультимодальную модель в AI_PHOTOSHOP_MODEL.", ['noVision' => true]);
+    if (preg_match('/not found|does not exist|unknown model|no such model/i', $err)) {
+        studio_fail(502, "Модели «{$LLM['model']}» нет на сервере модели{$where}. Проверьте имя модели в .env.");
     }
-    studio_fail($http >= 400 ? $http : 502, '⚠️ ' . $err);
+    if ((int)$r['http'] === 0) {
+        studio_fail(502, 'Модель недоступна: ' . $err . $where);
+    }
+    studio_fail((int)$r['http'] >= 400 ? (int)$r['http'] : 502, '⚠️ ' . $err . $where);
 }
 
-$msg = $res['message'] ?? [];
-$calls = [];
-foreach (($msg['tool_calls'] ?? []) as $c) {
-    $fn = $c['function'] ?? null;
-    if (!is_array($fn) || !isset($fn['name'])) {
-        continue;
-    }
-    $args = $fn['arguments'] ?? [];
-    if (is_string($args)) {
-        $decoded = json_decode($args, true);
-        $args = is_array($decoded) ? $decoded : [];
-    }
-    $calls[] = ['function' => ['name' => (string)$fn['name'], 'arguments' => $args ?: new stdClass()]];
-}
-
-// Шлюз мог вернуть вызовы инструментов текстом (Qwen XML или JSON в <tool_call>) — разбираем сами.
-$content = (string)($msg['content'] ?? '');
+$calls = $r['tool_calls'];
+// Модель могла вернуть вызовы инструментов текстом (Qwen XML или JSON в <tool_call>) — разбираем сами.
+$content = (string)$r['content'];
 $textCalls = [];
-if ($mode !== 'suggest') {
+if (!in_array($mode, ['text', 'suggest'], true)) {
     [$textCalls, $content] = studio_text_tool_calls($content);
     if (!$calls) {
         $calls = $textCalls;
@@ -329,18 +304,19 @@ if ($mode !== 'suggest') {
 
 echo json_encode([
     'ok' => true,
-    'model' => $res['model'] ?? $model,
+    'model' => $r['model'] !== '' ? $r['model'] : $LLM['model'],
     'message' => [
         'role' => 'assistant',
         'content' => $content,
         'tool_calls' => $calls,
     ],
     // Вызовы пришли текстом: панель запомнит это и дальше будет присылать историю текстом.
-    'textTools' => $textTools || count($textCalls) > 0,
-    'finish' => (string)($res['done_reason'] ?? ''),
+    'textTools' => $textTools || !empty($r['textTools']) || count($textCalls) > 0,
+    'finish' => $r['finish'],
     'usage' => [
-        'prompt_tokens' => (int)($res['prompt_eval_count'] ?? 0),
-        'completion_tokens' => (int)($res['eval_count'] ?? 0),
+        'prompt_tokens' => $r['usage']['prompt'],
+        'completion_tokens' => $r['usage']['completion'],
     ],
     'seconds' => round(microtime(true) - $started, 2),
-], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    'context' => $contextMode,
+] + (function_exists('dwt_fields') ? dwt_fields() : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
