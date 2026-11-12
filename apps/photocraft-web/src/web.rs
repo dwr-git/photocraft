@@ -14,7 +14,7 @@ use photocraft_ui_egui::theme::ThemeKind;
 use photocraft_ui_egui::{FileDialogAnswer, FileDialogRequest, PhotocraftApp, Services};
 use wasm_bindgen::JsCast as _;
 
-type Inbox = Arc<Mutex<Vec<(String, Vec<u8>)>>>;
+use crate::control_bridge::{Inbox, Saves};
 
 /// Everything File › Open reads: PhotoCraft, Photoshop, OpenRaster, Krita and Affinity documents, flat images, and
 /// Photoshop brushes (.abr), gradients (.grd) and swatches (.aco, .act, .ase), which go to the preset libraries.
@@ -90,13 +90,14 @@ pub fn start() {
                     let drag = listen_drag(&pen_target);
                     let (control_tx, control_rx) = std::sync::mpsc::channel();
                     let clip = crate::control_bridge::ClipSlot::default();
-                    let mut services = services(inbox.clone(), place_inbox.clone(), drag_pos_service(pen_target.clone(), drag));
+                    let saves: Saves = Arc::default();
+                    let mut services = services(inbox.clone(), place_inbox.clone(), drag_pos_service(pen_target.clone(), drag), saves.clone());
                     let (clip_get, clip_set) = crate::control_bridge::clipboard_services(&clip);
                     services.clipboard_get_image = Some(clip_get);
                     services.clipboard_set_image = Some(clip_set);
                     services.go_home = Some(Box::new(go_home));
                     let mut app = PhotocraftApp::new(session, services).with_control(control_rx);
-                    crate::control_bridge::install(control_tx, cc.egui_ctx.clone(), clip);
+                    crate::control_bridge::install(control_tx, cc.egui_ctx.clone(), clip, inbox.clone(), saves.clone());
                     if !preset_warnings.is_empty() {
                         photocraft_ui_egui::notices::post(&mut app, i18n::t("Some brush presets could not be loaded"), preset_warnings, true, None);
                     }
@@ -110,7 +111,7 @@ pub fn start() {
                     }
                     let unsaved = Arc::new(AtomicBool::new(false));
                     guard_unload(unsaved.clone());
-                    Ok(Box::new(WebShell { app, inbox, place_inbox, unsaved, served, database, presets }))
+                    Ok(Box::new(WebShell { app, inbox, place_inbox, unsaved, served, database, presets, saves }))
                 }),
             )
             .await;
@@ -276,9 +277,49 @@ struct WebShell {
     served: Served,
     database: Option<web_sys::IdbDatabase>,
     presets: crate::preset_bridge::Bridge,
+    /// Saves handed to the page for the user's files on the server (`crate::server_saves`).
+    saves: Saves,
 }
 
 impl WebShell {
+    /// After the app's part of a frame: ties the saves handed to the page during it to their
+    /// documents, and marks saved the documents whose saves the server has confirmed since.
+    fn settle_server_saves(&mut self) {
+        let session = &self.app.session;
+        let mut saves = self.saves.lock().unwrap_or_else(|e| e.into_inner());
+        saves.settle(|path| {
+            let mut bound = session.documents().iter().filter(|d| d.path.as_deref() == Some(path));
+            // The saver is the active document unless the save ran in the background.
+            let active = session.active().filter(|d| d.path.as_deref() == Some(path));
+            active.or_else(|| bound.next()).map(|d| (d.doc.id, d.revision))
+        });
+        if !saves.has_confirmed() {
+            return;
+        }
+        let done = saves.take_confirmed();
+        drop(saves);
+        for (doc, path, written) in done {
+            let session = &mut self.app.session;
+            let Some(index) = session.documents().iter().position(|d| d.doc.id == doc) else { continue };
+            let previous = session.active_index();
+            if previous != Some(index) && !session.set_active(index) {
+                continue;
+            }
+            if let Some(st) = session.active_mut()
+                && let Some(revision) =
+                    crate::server_saves::confirmed_revision(st.path.as_deref() == Some(path.as_str()), st.revision, st.saved_revision, written)
+            {
+                st.saved_revision = revision;
+            }
+            if let Some(previous) = previous
+                && previous != index
+            {
+                session.set_active(previous);
+            }
+        }
+        self.unsaved.store(self.app.has_unsaved_work() || self.presets.unsaved(), Ordering::Relaxed);
+    }
+
     fn save_presets(&mut self, ctx: &egui::Context) {
         if let Some(db) = self.database.clone()
             && let Some(batch) = self.presets.begin()
@@ -364,6 +405,7 @@ impl eframe::App for WebShell {
         }
         self.serve_fonts(ctx);
         self.app.logic(ctx, frame);
+        self.settle_server_saves();
         self.save_presets(ctx);
     }
 
@@ -392,11 +434,15 @@ impl eframe::App for WebShell {
             });
         }
         self.app.ui(ui, frame);
+        self.settle_server_saves();
         self.save_presets(ui.ctx());
     }
 }
 
-fn services(inbox: Inbox, place_inbox: Inbox, cursor_pos: photocraft_ui_egui::CursorPosFn) -> Services {
+fn services(inbox: Inbox, place_inbox: Inbox, cursor_pos: photocraft_ui_egui::CursorPosFn, saves: Saves) -> Services {
+    // A save dialog was asked for since the last write: the page asks for the name on the server.
+    let asked_name = Arc::new(AtomicBool::new(false));
+    let asking = asked_name.clone();
     Services {
         screen_pick: screen_color_service(),
         import: Some(Box::new(|name: &str, bytes: &[u8], opts: &photocraft_io::ImportOptions| {
@@ -405,7 +451,7 @@ fn services(inbox: Inbox, place_inbox: Inbox, cursor_pos: photocraft_ui_egui::Cu
         export: Some(Box::new(|doc: &Document, path: &str, settings: &photocraft_ui_egui::ExportSettings| {
             photocraft_io::export(doc, path, &settings.io_options()).map(|r| (r.bytes, r.warnings)).map_err(|e| e.to_string())
         })),
-        file_dialog: Some(Box::new(|request, _parent, reply| match request {
+        file_dialog: Some(Box::new(move |request, _parent, reply| match request {
             // The browser's file picker hands over the files' contents, not paths. File › Open
             // asks for several files (`multiple`), each opened in its own tab.
             FileDialogRequest::Open { multiple, extensions, .. } => wasm_bindgen_futures::spawn_local(async move {
@@ -437,12 +483,19 @@ fn services(inbox: Inbox, place_inbox: Inbox, cursor_pos: photocraft_ui_egui::Cu
             FileDialogRequest::Folder { .. } => reply.send(None),
             // No save dialog on the web: the suggested name becomes the download name.
             FileDialogRequest::Save { suggested } => {
+                asking.store(true, Ordering::Relaxed);
                 let name = std::path::Path::new(&suggested).file_name().map_or_else(|| suggested.clone(), |n| n.to_string_lossy().to_string());
                 reply.send(Some(FileDialogAnswer::SaveTo(name)));
             }
         })),
-        write: Some(Box::new(|path: &str, bytes: &[u8]| download(path, bytes))),
-        // A download may be cancelled and never reports back: it doesn't save the document.
+        // Documents go to the page while it keeps the user's files on the server; everything
+        // else (and documents without such a page) downloads.
+        write: Some(Box::new(move |path: &str, bytes: &[u8]| {
+            let save_as = asked_name.swap(false, Ordering::Relaxed);
+            if crate::control_bridge::hand_save(&saves, path, bytes, save_as) { Ok(()) } else { download(path, bytes) }
+        })),
+        // A download may be cancelled and never reports back: it doesn't save the document. A
+        // save to the server marks it saved once the server confirms (`WebShell::settle_server_saves`).
         write_unconfirmed: true,
         encode_png: Some(Box::new(|w, h, rgba| {
             let img = Image::from_u8(w, h, ChannelLayout::Rgba, rgba.to_vec()).map_err(|e| e.to_string())?;

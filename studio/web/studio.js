@@ -18,6 +18,8 @@
     maxSteps: 40,              // шагов подряд в «Сделай» по умолчанию (в панели: шестерёнка → 10…без ограничений)
     screenshotMax: 1024,       // длинная сторона снимка экрана для модели, px
     openOnStart: false,
+    files: 'api/files.php',    // «Мои файлы» на сервере; '' — выключить
+    filesOnStart: true,        // показать «Мои файлы» при запуске, если там уже что-то есть
   }, window.STUDIO_CONFIG || {});
   // Страница сборки лежит в b/<номер>/ (studio/build/versioned.sh); адреса из настроек — от папки приложения.
   const fromRoot = (p) => { try { return new URL(p, window.STUDIO_ROOT || document.baseURI).href; } catch { return p; } };
@@ -251,6 +253,9 @@
     brain: '<svg class="st-brain-svg" viewBox="0 0 24 24" fill="none" stroke="url(#st-brain-grad)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 13a3.5 3.5 0 0 0 -3.5 3.5v1a3.5 3.5 0 0 0 7 0v-1.8"/><path d="M8.5 13a3.5 3.5 0 0 1 3.5 3.5v1a3.5 3.5 0 0 1 -7 0v-1.8"/><path d="M17.5 16a3.5 3.5 0 0 0 0 -7h-.5"/><path d="M19 9.3v-2.8a3.5 3.5 0 0 0 -7 0"/><path d="M6.5 16a3.5 3.5 0 0 1 0 -7h.5"/><path d="M5 9.3v-2.8a3.5 3.5 0 0 1 7 0v10"/></svg>',
     expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>',
     shrink: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>',
+    folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+    file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3l-8 11h6l-1 7 8-11h-6z"/></svg>',
   };
   // Живой контур: мозг градиентом и три точки на орбите, пока помощник работает.
@@ -267,6 +272,7 @@
       <header class="st-head">
         <div class="st-logo st-brain st-raised-sm" aria-hidden="true">${BRAIN}</div>
         <div class="st-title"><b>Помощник</b><small data-ref="sub">Загрузка редактора…</small></div>
+        <button class="st-icon-btn" data-ref="filesBtn" title="Мои файлы (на сервере)" aria-label="Мои файлы">${ICON.folder}</button>
         <button class="st-icon-btn" data-ref="fullBtn" title="Во весь экран (F11): Ctrl+T, Ctrl+N, Ctrl+W работают как в Photoshop" aria-label="Во весь экран">${ICON.expand}</button>
         <button class="st-icon-btn" data-ref="barBtn" title="Быстрая строка (Ctrl+Shift+Пробел)" aria-label="Быстрая строка">${ICON.bolt}</button>
         <div class="st-theme-wrap">
@@ -290,6 +296,34 @@
         <div class="st-foot"><span>Ctrl+Z — отменить</span><span class="st-agent-wrap"><button data-ref="agentBtn" title="Сколько шагов подряд делать и спрашивать ли перед удалением" aria-haspopup="menu" aria-expanded="false">${ICON.gear}Настройки</button><span class="st-theme-menu st-agent-menu" data-ref="agentMenu" role="menu" hidden></span></span><button data-ref="clear">Новый разговор</button></div>
       </div>
     </aside>
+    <div class="st-files" data-ref="files" role="dialog" aria-modal="true" aria-label="Мои файлы" hidden>
+      <div class="st-files-box">
+        <header class="st-files-head">
+          <b>Мои файлы</b><small data-ref="filesWho"></small>
+          <button class="st-icon-btn" data-ref="filesClose" title="Закрыть (Esc)" aria-label="Закрыть">${ICON.x}</button>
+        </header>
+        <div class="st-files-tools">
+          <input data-ref="filesSearch" type="search" placeholder="Поиск по имени" aria-label="Поиск по имени">
+          <button class="st-mini" data-ref="filesNew">Новый документ</button>
+          <button class="st-mini" data-ref="filesUpload" title="Открыть файл с этого компьютера: .psd, .psb, .ora, .kra, .png, .jpg, .tif…">С компьютера…</button>
+        </div>
+        <div class="st-files-list" data-ref="filesList"></div>
+        <footer class="st-files-foot">
+          <span data-ref="filesCurrent"></span>
+          <button class="st-mini" data-ref="filesDownload" title="Скачать открытый документ на этот компьютер (.psd)">На компьютер</button>
+          <button class="st-mini" data-ref="filesSaveAs">Сохранить как…</button>
+          <button class="st-mini primary" data-ref="filesSave" title="Ctrl+S">Сохранить</button>
+        </footer>
+      </div>
+    </div>
+    <div class="st-ask" data-ref="ask" role="dialog" aria-modal="true" hidden>
+      <form class="st-ask-box">
+        <b data-ref="askTitle"></b>
+        <input data-ref="askInput" type="text" maxlength="120" aria-label="Имя файла">
+        <small data-ref="askNote"></small>
+        <div class="st-row"><button type="button" class="st-mini" data-ref="askCancel">Отмена</button><button type="button" class="st-mini" data-ref="askAlt" hidden></button><button type="submit" class="st-mini primary" data-ref="askOk">Сохранить</button></div>
+      </form>
+    </div>
     <button class="st-fab st-brain" data-ref="fab" title="Помощник" aria-label="Открыть помощника">${BRAIN}<span class="st-badge" aria-hidden="true"></span></button>
     <div class="st-bar" data-ref="bar" role="dialog" aria-label="Быстрая строка помощника">
       <div class="st-bar-answer" data-ref="barAnswer"></div>
@@ -1267,6 +1301,321 @@
     toast(files.length === 1 ? 'Открываю ' + files[0].name : 'Открываю файлы: ' + files.length);
   });
 
+  // Мост для «Моих файлов» (apps/photocraft-web/src/control_bridge.rs): open, takesSaves, savedToServer.
+  const VC_SAVES = () => window.__photocraftNative;
+  function openInEditor(name, bytes) {
+    const n = window.__photocraftNative;
+    return !!(n && typeof n.open === 'function' && n.open(name, bytes));
+  }
+  // Редактор считает документ сохранённым, только когда сервер его принял.
+  function confirmSaved(d) {
+    const n = window.__photocraftNative;
+    if (n && typeof n.savedToServer === 'function' && Number(d.token) > 0) n.savedToServer(Number(d.token));
+  }
+  function notSaved() { toast('Не сохранено: изменения остались в редакторе, документ помечен как несохранённый.'); }
+  const saveCommand = (saveAs) => PC.call('ui.menu.invoke', { command: saveAs ? 'file.saveAs' : 'file.save' });
+  const newDocument = () => PC.call('ui.menu.invoke', { command: 'file.new' });
+
+  // ------------------------------------------------------------------ мои файлы на сервере
+  // У каждого пользователя своя папка на сервере (api/files.php). Сохранение документа в редакторе
+  // (Ctrl+S, Файл › Сохранить, Сохранить как) приходит сюда событием photocraft:save и уходит на сервер;
+  // если сервер его не принял — файл сразу скачивается на компьютер, а копия остаётся в браузере.
+  const fmtSize = (n) => (n < 1024 ? n + ' Б' : n < 1048576 ? Math.round(n / 1024) + ' КБ' : (n / 1048576).toFixed(1).replace('.', ',') + ' МБ');
+  const fmtDate = (t) => {
+    if (!t) return '';
+    const d = new Date(t * 1000), now = new Date();
+    const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) return 'сегодня, ' + time;
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' }) + ', ' + time;
+  };
+
+  // Окно с одним полем: имя файла. Возвращает имя, null (Отмена) или ASK_ALT (вторая кнопка).
+  const ASK_ALT = 'alt';
+  function askName(title, value, note, alt) {
+    return new Promise((resolve) => {
+      const box = $('ask');
+      const form = box.querySelector('form');
+      const field = $('askInput');
+      const altBtn = $('askAlt');
+      $('askTitle').textContent = title;
+      $('askNote').textContent = note || '';
+      altBtn.hidden = !alt;
+      altBtn.textContent = alt || '';
+      field.value = value || '';
+      box.hidden = false;
+      // Выделено имя без расширения: его обычно и меняют.
+      setTimeout(() => { field.focus(); const dot = field.value.lastIndexOf('.'); field.setSelectionRange(0, dot > 0 ? dot : field.value.length); }, 30);
+      const done = (v) => { box.hidden = true; form.onsubmit = null; $('askCancel').onclick = null; altBtn.onclick = null; box.onkeydown = null; resolve(v); };
+      form.onsubmit = (e) => { e.preventDefault(); done(field.value.trim() || null); };
+      $('askCancel').onclick = () => done(null);
+      altBtn.onclick = () => done(ASK_ALT);
+      box.onkeydown = (e) => { if (e.key === 'Escape') { e.preventDefault(); done(null); } };
+    });
+  }
+
+  // Копия в браузере, если сохранить на сервер не вышло (нет связи, сервер не принял файл).
+  const Recovery = (() => {
+    const open = () => new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('нет IndexedDB')); return; }
+      const r = indexedDB.open('aiphotoshop', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('recovery');
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+    const run = async (mode, fn) => {
+      const db = await open();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('recovery', mode);
+        const req = fn(tx.objectStore('recovery'));
+        tx.oncomplete = () => { db.close(); resolve(req && req.result); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      });
+    };
+    return {
+      put: (v) => run('readwrite', (s) => s.put(v, 'last')).catch(() => {}),
+      get: () => run('readonly', (s) => s.get('last')).catch(() => null),
+      clear: () => run('readwrite', (s) => s.delete('last')).catch(() => {}),
+    };
+  })();
+
+  function downloadBytes(name, bytes) {
+    try {
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return true;
+    } catch (e) { console.warn('AI-Photoshop: скачивание не удалось', e); return false; }
+  }
+
+  const Files = (() => {
+    // Типы файлов на сервере (как в api/files.php) и типы документов, которые приходят при сохранении.
+    const EXT = /\.(psd|psb|pcraft|ora|kra|png|jpe?g|tiff?)$/i;
+    let list = [];
+    let last = null;                 // файл на сервере, открытый или сохранённый последним
+    const mine = new Set();          // файлы сервера, открытые или сохранённые в этой вкладке
+    const alias = new Map();         // имя в редакторе → имя на сервере, если сохранили под другим
+    let saveAsNext = false;          // «Сохранить как» из окна «Мои файлы»
+    let downloadNext = false;        // «На компьютер»: следующее сохранение — скачать
+    let flagTimer = 0;
+    let queue = Promise.resolve();   // сохранения по одному: окно с именем одно
+    const api = (q) => CFG.files + (q ? '?' + q : '');
+    const extOf = (n) => { const m = String(n || '').match(EXT); return m ? m[0].toLowerCase() : '.psd'; };
+    const stem = (n) => String(n || '').replace(EXT, '').trim();
+    // Имя на сервере всегда с расширением того, что сохраняется: содержимое от имени не меняется.
+    const withExt = (name, like) => (stem(name) || stem(like) || 'Без названия') + extOf(like);
+    async function json(r) {
+      let j = null;
+      try { j = await r.json(); } catch { /* ниже */ }
+      if (!j) throw new Error(r.status === 413 ? 'Файл слишком большой для сервера: увеличьте client_max_body_size в nginx и post_max_size в PHP.' : `Сервер ответил ${r.status}: проверьте, что PHP обрабатывает api/files.php.`);
+      if (!j.ok) { const e = new Error(j.error || 'Ошибка сервера'); e.exists = !!j.exists; e.login = !!j.login; throw e; }
+      return j;
+    }
+    async function refresh() {
+      const j = await json(await fetch(api(''), { credentials: 'same-origin', cache: 'no-store' }));
+      list = Array.isArray(j.files) ? j.files : [];
+      $('filesWho').textContent = j.user && j.user !== 'local' ? 'на сервере · пользователь ' + j.user : 'на сервере';
+      return list;
+    }
+    function render() {
+      const q = norm($('filesSearch').value).trim();
+      const rows = list.filter((f) => !q || norm(f.name).includes(q));
+      const box = $('filesList');
+      if (!list.length) { box.innerHTML = '<p class="st-files-empty">Здесь будут ваши документы. Сохраните открытый документ кнопкой «Сохранить» или Ctrl+S — он появится в этом списке.</p>'; return; }
+      if (!rows.length) { box.innerHTML = '<p class="st-files-empty">Ничего не найдено.</p>'; return; }
+      box.innerHTML = rows.map((f, i) => `<div class="st-file" data-i="${i}" tabindex="0">
+          <span class="st-file-icon">${ICON.file}</span>
+          <span class="st-file-name">${esc(f.name)}</span>
+          <span class="st-file-meta">${esc(fmtDate(f.modified))} · ${esc(fmtSize(f.size))}</span>
+          <span class="st-file-acts"><button class="st-link" data-a="rename">Переименовать</button><button class="st-link danger" data-a="delete">Удалить</button></span>
+        </div>`).join('');
+      box.querySelectorAll('.st-file').forEach((row) => {
+        const f = rows[+row.dataset.i];
+        row.onclick = (e) => { if (!e.target.closest('button')) load(f.name); };
+        row.onkeydown = (e) => { if (e.key === 'Enter' && e.target === row) load(f.name); };
+        row.querySelector('[data-a="rename"]').onclick = () => rename(f.name);
+        row.querySelector('[data-a="delete"]').onclick = () => remove(f.name);
+      });
+    }
+    function updateFoot() {
+      $('filesCurrent').textContent = last ? `Последний: «${last}»` : 'Сохраните документ (Ctrl+S) — он появится здесь.';
+    }
+    async function show(on = true) {
+      $('files').hidden = !on;
+      if (!on) return;
+      $('filesList').innerHTML = '<p class="st-files-empty">Загружаю список…</p>';
+      updateFoot();
+      try { await refresh(); render(); } catch (e) { $('filesList').innerHTML = `<p class="st-files-empty err">${esc(e.message)}</p>`; }
+      setTimeout(() => $('filesSearch').focus(), 30);
+    }
+    async function load(name) {
+      try {
+        toast('Открываю «' + name + '»…');
+        const r = await fetch(api('action=load&name=' + encodeURIComponent(name)), { credentials: 'same-origin', cache: 'no-store' });
+        if (!r.ok) await json(r);
+        const bytes = new Uint8Array(await r.arrayBuffer());
+        if (!openInEditor(name, bytes)) throw new Error('редактор не принял файл');
+        mine.add(name);
+        last = name;
+        show(false);
+      } catch (e) { toast('Не удалось открыть: ' + e.message, true); }
+    }
+    async function upload(name, bytes, overwrite) {
+      const r = await fetch(api('action=save&name=' + encodeURIComponent(name) + (overwrite ? '&overwrite=1' : '')), {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/octet-stream' }, body: bytes,
+      });
+      return json(r);
+    }
+    // Флаги кнопок окна действуют на одно сохранение и недолго: если оно не случилось, они гаснут.
+    function arm(which) {
+      if (which === 'saveAs') saveAsNext = true; else downloadNext = true;
+      clearTimeout(flagTimer);
+      flagTimer = setTimeout(() => { saveAsNext = false; downloadNext = false; }, 120000);
+    }
+    // Сохранение из редактора: документ приходит сюда.
+    async function onSave(d) {
+      const bytes = d.bytes;
+      if (!(bytes instanceof Uint8Array) || !bytes.length) return;
+      const appName = String(d.name || 'Без названия' + '.psd');
+      if (downloadNext) {
+        downloadNext = false;
+        if (downloadBytes(appName, bytes)) toast('Файл «' + appName + '» скачан на компьютер.');
+        return;
+      }
+      const asked = saveAsNext || !!d.saveAs;
+      saveAsNext = false;
+      const known = alias.get(appName) || appName;
+      let name = !asked && mine.has(known) ? known : null;
+      let overwrite = !!name;
+      try {
+        if (!name) {
+          const choice = await askName(asked ? 'Сохранить как' : 'Сохранить на сервере', known, 'Файл появится в «Моих файлах».', 'На компьютер');
+          if (choice === ASK_ALT) {
+            if (downloadBytes(appName, bytes)) toast('Файл «' + appName + '» скачан на компьютер.');
+            return;
+          }
+          if (!choice) { notSaved(appName, bytes); return; }
+          name = withExt(choice, appName);
+          if (!list.length) await refresh().catch(() => {});
+          if (list.some((f) => f.name === name) && !mine.has(name) && !window.confirm(`Файл «${name}» уже есть в «Моих файлах». Заменить его?`)) { notSaved(appName, bytes); return; }
+          overwrite = true;
+        }
+        const r = await upload(name, bytes, overwrite);
+        mine.add(r.name);
+        last = r.name;
+        if (r.name !== appName) alias.set(appName, r.name); else alias.delete(appName);
+        confirmSaved(d);
+        Recovery.clear();
+        toast('Сохранено в «Моих файлах»: «' + r.name + '»');
+        if (!$('files').hidden) { await refresh().catch(() => {}); render(); updateFoot(); }
+      } catch (e) {
+        // Документ не должен пропасть: если сервер не принял его, файл сразу скачивается на компьютер.
+        Recovery.put({ name: name || appName, data: bytes, time: Date.now() });
+        downloadBytes(name || appName, bytes);
+        if (e.login) toast('Войдите в систему, чтобы сохранять файлы на сервере. Файл скачан на компьютер.', true);
+        else toast('Не удалось сохранить на сервере: ' + e.message + '. Файл скачан на компьютер.', true);
+      }
+    }
+    // Копия открытого документа на компьютер, без сохранения на сервере.
+    async function downloadCopy() {
+      if (!PC.ready()) return;
+      arm('download');
+      try { await saveCommand(false); } catch (e) { downloadNext = false; toast('Не удалось скачать: ' + e.message, true); }
+    }
+    async function save(saveAs) {
+      if (!PC.ready()) return;
+      if (saveAs) arm('saveAs');
+      show(false);
+      try { await saveCommand(saveAs); } catch (e) { saveAsNext = false; toast('Не удалось сохранить: ' + e.message, true); }
+    }
+    async function rename(name) {
+      const to0 = await askName('Переименовать', name);
+      if (!to0 || to0 === name) return;
+      const to = withExt(to0, name);
+      if (to === name) return;
+      try {
+        const r = await json(await fetch(api('action=rename'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, to }) }));
+        const now = r.name || to;
+        // Документ, открытый из этого файла, дальше сохраняется под новым именем.
+        for (const [k, v] of alias) if (v === name) alias.set(k, now);
+        if (mine.delete(name)) { mine.add(now); if (!alias.has(name)) alias.set(name, now); }
+        if (last === name) last = now;
+        await refresh(); render(); updateFoot();
+      } catch (e) { toast('Не удалось переименовать: ' + e.message, true); }
+    }
+    async function remove(name) {
+      if (!window.confirm(`Удалить «${name}»? Файл уйдёт в корзину на сервере.`)) return;
+      try {
+        await json(await fetch(api('action=delete'), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }));
+        mine.delete(name);
+        for (const [k, v] of alias) if (v === name) alias.delete(k);
+        if (last === name) last = null;
+        await refresh(); render(); updateFoot();
+      } catch (e) { toast('Не удалось удалить: ' + e.message, true); }
+    }
+    function pickLocal() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.psd,.psb,.pcraft,.ora,.kra,.png,.jpg,.jpeg,.tif,.tiff,.webp,.gif,.bmp,.heic,.heif,.svg';
+      input.onchange = async () => {
+        const f = input.files && input.files[0];
+        if (!f) return;
+        try {
+          if (!openInEditor(f.name, new Uint8Array(await f.arrayBuffer()))) throw new Error('редактор не принял файл');
+          show(false);
+          toast('Открыт «' + f.name + '». Сохраните его (Ctrl+S), чтобы он появился в «Моих файлах».');
+        } catch (e) { toast('Не удалось открыть ' + f.name + ': ' + e.message, true); }
+      };
+      input.click();
+    }
+    async function offerRecovery() {
+      const r = await Recovery.get();
+      if (!r || !r.data) return;
+      const when = new Date(r.time).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const d = msg('note', `Файл «${esc(r.name)}» от ${esc(when)} не удалось сохранить на сервер — его копия осталась в браузере (и была скачана на компьютер). ` +
+        '<span class="st-row"><button class="st-mini" data-a="open">Открыть копию</button><button class="st-mini" data-a="down">На компьютер</button><button class="st-mini danger" data-a="drop">Удалить копию</button></span>');
+      d.querySelector('[data-a="open"]').onclick = () => {
+        try {
+          if (!openInEditor(r.name, r.data)) throw new Error('редактор не принял файл');
+          d.remove();
+          toast('Копия открыта. Сохраните её (Ctrl+S).');
+        } catch (e) { toast('Не удалось открыть копию: ' + e.message, true); }
+      };
+      d.querySelector('[data-a="down"]').onclick = () => { downloadBytes(r.name, r.data); };
+      d.querySelector('[data-a="drop"]').onclick = () => { Recovery.clear(); d.remove(); };
+      setOpen(true);
+    }
+    function start() {
+      if (!CFG.files) { $('filesBtn').hidden = true; return; }
+      // Редактор отдаёт документы сюда, а не скачивает их.
+      try { VC_SAVES().takesSaves = true; } catch { /* мост ещё не готов: сохранения скачиваются */ }
+      window.addEventListener('photocraft:save', (e) => {
+        const d = (e && e.detail) || {};
+        queue = queue.then(() => onSave(d)).catch((err) => console.warn('AI-Photoshop: сохранение', err));
+      });
+      $('filesBtn').onclick = () => show(true);
+      $('filesClose').onclick = () => show(false);
+      $('files').addEventListener('pointerdown', (e) => { if (e.target === $('files')) show(false); });
+      $('files').addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('ask').hidden) { e.preventDefault(); show(false); } });
+      $('filesSearch').addEventListener('input', render);
+      $('filesNew').onclick = async () => { show(false); try { await newDocument(); } catch (e) { toast(e.message, true); } };
+      $('filesUpload').onclick = pickLocal;
+      $('filesSave').onclick = () => save(false);
+      $('filesSaveAs').onclick = () => save(true);
+      $('filesDownload').onclick = downloadCopy;
+      // Браузер не должен предлагать «Сохранить страницу как…»: Ctrl+S получает редактор.
+      window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 's' || e.key === 'S' || e.code === 'KeyS')) e.preventDefault(); }, true);
+      offerRecovery();
+      if (CFG.filesOnStart) refresh().then((l) => { if (l.length) show(true); }).catch(() => {});
+    }
+    return { start, show, save };
+  })();
+
   // ------------------------------------------------------------------ тема и запуск
   const panelThemeOf = (themeId) => (themeId === 'brand' ? 'brand' : (DARK_THEMES.has(themeId) ? 'dark' : 'light'));
   function applyPanelTheme(themeId) {
@@ -1456,6 +1805,7 @@
     } catch { /* старые настройки — не страшно */ }
     await setTheme(store.get('theme', CFG.defaultTheme));
     if (store.get('open', CFG.openOnStart)) setOpen(true);
+    Files.start();
     commands().catch(() => {});
     watchTheme();
     watchDocuments();

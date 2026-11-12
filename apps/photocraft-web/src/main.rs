@@ -9,7 +9,8 @@
 //!   control methods through `window.__photocraftNative` (see `control_bridge`);
 //! - file pickers return browser file contents asynchronously through `Services::file_dialog`;
 //!   this includes File → Open and commands such as Place Embedded;
-//! - saving/exporting triggers a browser download;
+//! - saving/exporting triggers a browser download, except that documents go to the page while it
+//!   keeps the user's files on the server (`server_saves`, «Мои файлы» in `studio/`);
 //! - dropped files are read asynchronously by `web::WebShell` and delivered through `Services::inbox`.
 //!
 //! URL query flags: `?cpu` forces the CPU canvas path (same as `PHOTOCRAFT_CPU_CANVAS=1`);
@@ -28,6 +29,9 @@ mod web;
 
 #[cfg(target_arch = "wasm32")]
 mod control_bridge;
+
+#[cfg(any(target_arch = "wasm32", test))]
+mod server_saves;
 
 #[cfg(target_arch = "wasm32")]
 fn main() {
