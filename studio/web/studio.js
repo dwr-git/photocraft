@@ -1,4 +1,4 @@
-/* AI-Photoshop — помощник внутри редактора.
+/* AI Фото — помощник внутри редактора.
  *
  * Панель в браузере разговаривает с моделью через api/assistant.php, а действия
  * выполняет в самом редакторе через мост window.__photocraftNative
@@ -273,7 +273,7 @@
         <div class="st-logo st-brain st-raised-sm" aria-hidden="true">${BRAIN}</div>
         <div class="st-title"><b>Помощник</b><small data-ref="sub">Загрузка редактора…</small></div>
         <button class="st-icon-btn" data-ref="filesBtn" title="Мои файлы (на сервере)" aria-label="Мои файлы">${ICON.folder}</button>
-        <button class="st-icon-btn" data-ref="fullBtn" title="Во весь экран (F11): Ctrl+T, Ctrl+N, Ctrl+W работают как в Photoshop" aria-label="Во весь экран">${ICON.expand}</button>
+        <button class="st-icon-btn" data-ref="fullBtn" title="Во весь экран (F11): Ctrl+T, Ctrl+N, Ctrl+W работают в редакторе, а не в браузере" aria-label="Во весь экран">${ICON.expand}</button>
         <button class="st-icon-btn" data-ref="barBtn" title="Быстрая строка (Ctrl+Shift+Пробел)" aria-label="Быстрая строка">${ICON.bolt}</button>
         <div class="st-theme-wrap">
           <button class="st-icon-btn" data-ref="theme" title="Тема оформления" aria-label="Тема оформления" aria-haspopup="menu" aria-expanded="false">${ICON.palette}</button>
@@ -862,7 +862,7 @@
     try {
       r = await post(payload);
     } catch (e) {
-      console.warn('AI-Photoshop: запрос к помощнику оборвался', e);
+      console.warn('AI Фото: запрос к помощнику оборвался', e);
       if (!hasImages(payload)) throw new Error(await explainNoAnswer(took()));
       try { r = await post(withoutImages(payload)); } catch { throw new Error(await explainNoAnswer(took())); }
       tellImagesBlocked();
@@ -1390,7 +1390,7 @@
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
       return true;
-    } catch (e) { console.warn('AI-Photoshop: скачивание не удалось', e); return false; }
+    } catch (e) { console.warn('AI Фото: скачивание не удалось', e); return false; }
   }
 
   const Files = (() => {
@@ -1604,7 +1604,7 @@
       try { VC_SAVES().takesSaves = true; } catch { /* мост ещё не готов: сохранения скачиваются */ }
       window.addEventListener('photocraft:save', (e) => {
         const d = (e && e.detail) || {};
-        queue = queue.then(() => onSave(d)).catch((err) => console.warn('AI-Photoshop: сохранение', err));
+        queue = queue.then(() => onSave(d)).catch((err) => console.warn('AI Фото: сохранение', err));
       });
       $('filesBtn').onclick = () => show(true);
       $('filesClose').onclick = () => show(false);
@@ -1739,7 +1739,7 @@
       if (!isFull()) await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
       if (navigator.keyboard && navigator.keyboard.lock) {
         await navigator.keyboard.lock(LOCK_KEYS);
-        toast('Весь экран: Ctrl+T, Ctrl+N, Ctrl+W работают как в Photoshop. Выйти — удерживайте Esc.');
+        toast('Весь экран: Ctrl+T, Ctrl+N, Ctrl+W работают в редакторе, а не в браузере. Выйти — удерживайте Esc.');
       } else {
         toast('Весь экран. Этот браузер не отдаёт Ctrl+T странице — используйте F9 (Свободное трансформирование). Выйти — Esc.');
       }
@@ -1752,7 +1752,7 @@
     const b = $('fullBtn');
     if (!b) return;
     b.innerHTML = isFull() ? ICON.shrink : ICON.expand;
-    b.title = isFull() ? 'Выйти из полноэкранного режима (удерживайте Esc)' : 'Во весь экран (F11): Ctrl+T, Ctrl+N, Ctrl+W работают как в Photoshop';
+    b.title = isFull() ? 'Выйти из полноэкранного режима (удерживайте Esc)' : 'Во весь экран (F11): Ctrl+T, Ctrl+N, Ctrl+W работают в редакторе, а не в браузере';
   }
   document.addEventListener('fullscreenchange', () => { if (!isFull() && navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock(); syncFullBtn(); setTimeout(() => window.dispatchEvent(new Event('resize')), 100); });
   // F11 — наш полноэкранный режим (с клавишами Photoshop), а не браузерный.

@@ -3,8 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <title>AI-Photoshop</title>
+  <title>AI Фото</title>
   <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <!-- Shows download progress and, if the start fails, which file and why. Everything loads from this folder only. -->
   <script src="studio/loader.js"></script>
   <link data-trunk rel="rust" data-bin="photocraft-web" data-cargo-profile="wasm-release" data-cargo-features="heif" data-wasm-opt="z" data-wasm-opt-params="--converge" data-weak-refs />
@@ -42,11 +45,11 @@
 <body>
   <canvas id="photocraft_canvas"></canvas>
   <div id="photocraft_loading">
-    <p>Загрузка AI-Photoshop&hellip;</p>
+    <p>Загрузка AI Фото&hellip;</p>
     <div id="ap_track"><div id="ap_bar"></div></div>
     <p id="ap_progress"></p>
     <p id="ap_problem" hidden></p>
-    <p id="photocraft_stalled">Загрузка идёт дольше обычного. Если AI-Photoshop не запускается, файлы могли не скачаться
+    <p id="photocraft_stalled">Загрузка идёт дольше обычного. Если AI Фото не запускается, файлы могли не скачаться
       или относиться к другой версии страницы. <a href="">Обновите страницу</a>; подробности — в консоли браузера (F12).</p>
   </div>
 </body>

@@ -648,6 +648,7 @@ fn about_tab_body(app: &mut PhotocraftApp, ui: &mut egui::Ui, tab: &str) {
         _ => {
             ui.label(tl!("PhotoCraft — an open-source, native image editor written in Rust."));
             ui.label(crate::i18n::fmt(tl!("Version {version}"), &[("version", &photocraft_engine::build_info::long_version())]));
+            ui.label(tl!("Photoshop is a trademark of Adobe. AI Фото is not affiliated with Adobe and works with files in its formats."));
 
         }
     }

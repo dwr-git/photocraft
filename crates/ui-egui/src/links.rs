@@ -13,7 +13,7 @@ pub const GITHUB: &str = "https://github.com/storytold/photocraft";
 pub const ISSUES: &str = "https://github.com/storytold/photocraft/issues";
 
 /// Help-menu link commands: (id, url). Labels live in `menus::UI_COMMANDS`.
-/// AI-Photoshop is self-hosted and works offline, so the Help menu sends nobody to the original
+/// AI Фото is self-hosted and works offline, so the Help menu sends nobody to the original
 /// project's sites: the list is empty and the constants above stay for the shared code.
 pub const COMMANDS: &[(&str, &str)] = &[];
 

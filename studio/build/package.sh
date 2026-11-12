@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds AI-Photoshop: the browser app plus the assistant panel and its PHP, as one folder
+# Builds AI Фото: the browser app plus the assistant panel and its PHP, as one folder
 # ready for the server, zipped:  $DIST/ai-photoshop-<version>.zip  →  ai-photoshop/
 # The folder works under any name: every path in it is relative.
 #
@@ -30,7 +30,8 @@ rm -f "$APP/HOSTING.md"
 mkdir -p "$APP/studio"
 cp "$ROOT/studio/web/studio.js" "$ROOT/studio/web/studio.css" "$ROOT/studio/web/config.js" "$ROOT/studio/web/loader.js" "$APP/studio/"
 cp "$ROOT/studio/web/.htaccess" "$APP/studio/"
-cp "$ROOT/studio/web/favicon.png" "$APP/favicon.png"
+# Icons: the shared Dewiar favicon in the browser tab, the app's own icon for home-screen shortcuts.
+cp "$ROOT/studio/web/favicon.png" "$ROOT/studio/web/favicon-16.png" "$ROOT/studio/web/favicon.ico" "$ROOT/studio/web/apple-touch-icon.png" "$APP/"
 python3 "$ROOT/studio/build/make_labels.py" "$APP/studio/ru-labels.json"
 
 # The assistant's PHP: api/ next to index.html.
@@ -74,7 +75,7 @@ printf '# build %s, %s %s\n' "$BUILD" "$BUILD_DATE" "$PAD" >>"$APP/app/parts.txt
 sed -i.bak "s#<html lang=\"ru\"#<html lang=\"ru\" data-build=\"$BUILD\"#" "$APP/index.html" && rm -f "$APP/index.html.bak"
 # Каждая сборка — в своей папке b/<номер>/, index.php выбирает самую новую (studio/build/versioned.sh):
 # обновление любой программой заливки не может смешать файлы разных сборок.
-"$ROOT/studio/build/versioned.sh" "$APP" "$BUILD" "AI-Photoshop"
+"$ROOT/studio/build/versioned.sh" "$APP" "$BUILD" "AI Фото"
 # Каждый текстовый файл с постоянным именем (страница, index.php, скрипты и стили панели, PHP
 # помощника, файл запуска с постоянным именем) получает в конце строку с номером сборки и набивкой
 # той же разной длины: иначе программа заливки, которая пропускает файлы того же размера, оставит

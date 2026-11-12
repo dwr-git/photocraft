@@ -1,4 +1,4 @@
-# Сборка AI-Photoshop: готовая папка для сервера (zip).
+# Сборка AI Фото: готовая папка для сервера (zip).
 #
 # Запускается на каждое изменение ветки main и вручную (Actions → «Сборка» → Run workflow).
 # Результат:
@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   build:
-    name: AI-Photoshop (браузер)
+    name: AI Фото (браузер)
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:

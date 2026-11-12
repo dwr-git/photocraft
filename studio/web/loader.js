@@ -1,4 +1,4 @@
-/* AI-Photoshop — самопроверка загрузки.
+/* AI Фото — самопроверка загрузки.
  *
  * Пока приложение скачивается, страница показывает, сколько уже получено. Если запуск не удался,
  * здесь же видно, какой файл не пришёл и почему (а не только «Загрузка идёт дольше обычного»).
@@ -51,7 +51,7 @@
   function problem(text) {
     if (problems.indexOf(text) < 0 && problems.length < 6) {
       problems.push(text);
-      if (window.console && console.warn) console.warn('AI-Photoshop:', text);
+      if (window.console && console.warn) console.warn('AI Фото:', text);
       render();
     }
   }
@@ -81,7 +81,7 @@
   console.error = function () {
     try {
       var text = Array.prototype.map.call(arguments, function (a) { return a && a.message ? a.message : String(a); }).join(' ');
-      if (loading() && !problems.length && /ai-photoshop-boot|HTTP \d|web page|WebAssembly|damaged|parts list/.test(text)) problem('Загрузчик сообщил: ' + text.replace(/^ai-photoshop-boot: could not start AI-Photoshop: /, ''));
+      if (loading() && !problems.length && /ai-photoshop-boot|HTTP \d|web page|WebAssembly|damaged|parts list/.test(text)) problem('Загрузчик сообщил: ' + text.replace(/^ai-photoshop-boot: could not start AI Фото: /, ''));
     } catch (err) { /* только для показа */ }
     return consoleError.apply(console, arguments);
   };

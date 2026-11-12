@@ -274,12 +274,12 @@ mod boot {
                     Ok(()) => return,
                     Err(e) => e,
                 };
-                web_sys::console::error_2(&JsValue::from_str("ai-photoshop-boot: could not start AI-Photoshop:"), &error);
+                web_sys::console::error_2(&JsValue::from_str("ai-photoshop-boot: could not start AI Фото:"), &error);
                 let Some(&wait) = RETRY_AFTER.get(attempt) else {
-                    say("AI-Photoshop не скачался с сервера. Проверьте, что папка скопирована целиком, и попробуйте ещё раз: ", true);
+                    say("AI Фото не скачался с сервера. Проверьте, что папка скопирована целиком, и попробуйте ещё раз: ", true);
                     return;
                 };
-                say("Загрузка AI-Photoshop\u{2026} (скачать не вышло, пробую ещё раз)", false);
+                say("Загрузка AI Фото\u{2026} (скачать не вышло, пробую ещё раз)", false);
                 sleep(wait).await;
                 attempt += 1;
             }
